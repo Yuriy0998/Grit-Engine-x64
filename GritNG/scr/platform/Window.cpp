@@ -7,7 +7,7 @@
 #endif
 #include <windows.h>
 #include <windowsx.h>
-
+#pragma comment(lib, "user32.lib")
 namespace grit {
 
     static const wchar_t* kClassName = L"GritNGWindow";
@@ -180,6 +180,28 @@ namespace grit {
             }
             return 0;
         }
+        case WM_INPUT: {
+            if (self && self->_input()) {
+                UINT size = 0;
+                GetRawInputData((HRAWINPUT)lp, RID_INPUT, nullptr, &size, sizeof(RAWINPUTHEADER));
+                if (size > 0 && size <= 64) { // raw mouse — маленькая структура
+                    BYTE buf[64];
+                    if (GetRawInputData((HRAWINPUT)lp, RID_INPUT, buf, &size, sizeof(RAWINPUTHEADER)) == size) {
+                        RAWINPUT* ri = (RAWINPUT*)buf;
+                        if (ri->header.dwType == RIM_TYPEMOUSE) {
+                            const RAWMOUSE& m = ri->data.mouse;
+                            if ((m.usFlags & MOUSE_MOVE_ABSOLUTE) == 0) {
+                                // Относительные дельты — то, что нам нужно
+                                if (m.lLastX != 0 || m.lLastY != 0) {
+                                    self->_input()->_onRawMouseDelta(m.lLastX, m.lLastY);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            return 0;
+        }
 
         case WM_MOUSEWHEEL: {
             if (self && self->_input()) {
@@ -243,6 +265,14 @@ namespace grit {
 
         SetWindowLongPtrW(hwnd, GWLP_USERDATA, (LONG_PTR)this);
         ShowWindow(hwnd, SW_SHOW);
+        RAWINPUTDEVICE rid{};
+        rid.usUsagePage = 0x01; // Generic Desktop
+        rid.usUsage = 0x02; // Mouse
+        rid.dwFlags = 0;    // не RIDEV_NOLEGACY — нам нужны и обычные WM_MOUSE* для UI
+        rid.hwndTarget = hwnd;
+        if (!RegisterRawInputDevices(&rid, 1, sizeof(rid))) {
+            GRIT_WARN("RegisterRawInputDevices failed");
+        }
         UpdateWindow(hwnd);
 
         m_hwnd = hwnd;
@@ -326,24 +356,9 @@ namespace grit {
         POINT center{ (rc.right - rc.left) / 2, (rc.bottom - rc.top) / 2 };
         ClientToScreen((HWND)m_hwnd, &center);
         SetCursorPos(center.x, center.y);
-
-        // Сбрасываем "последнюю позицию" в Input, чтобы синтетический WM_MOUSEMOVE
-        // от SetCursorPos не дал гигантскую дельту
-        if (m_input) {
-            POINT cli{ center.x, center.y };
-            ScreenToClient((HWND)m_hwnd, &cli);
-            // Хак: вызываем move дважды — первый раз он установит lastMouse,
-            // но также добавит дельту. Поэтому делаем _onFocusLost-подобный сброс
-            // только координат через приватный путь — у нас он один: _onMouseMove
-            // после которого следующий настоящий move даст правильную дельту.
-            // Чтобы не было «прыжка» в первом кадре, делаем move и затем обнуляем дельту.
-            m_input->_onMouseMove(cli.x, cli.y);
-            // и зануляем накопленную дельту, потому что warp — не пользовательское движение:
-            // _onMouseMove добавил (cli - last), что нам не нужно.
-            // Простой способ: вызвать дважды подряд с одинаковыми координатами — но
-            // _onMouseMove уже сделал last = cli, так что следующий warp в pumpMessages
-            // не накопит ничего. Этого достаточно для FPS-камеры.
-        }
+        // Сбрасываем lastMouse, чтобы WM_MOUSEMOVE от warp'а не дал WM_MOUSEMOVE-дельту.
+        // Raw input при этом продолжает давать корректные дельты сам по себе.
+        if (m_input) m_input->_resetMouseDelta();
     }
 
 } // namespace grit

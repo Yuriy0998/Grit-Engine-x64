@@ -4,6 +4,8 @@
 #include "../ecs/World.h"
 #include "../core/Log.h"
 #include "../core/Math.h"
+#include "../ecs/Light.h"
+
 
 #include "StaticMesh.h"
 #include "Material.h"
@@ -11,19 +13,25 @@
 
 #include <bgfx/bgfx.h>
 #include <bx/math.h>
+#include <cmath>
 
 namespace grit::render {
 
-    bool Renderer::init(rhi::Device* dev) {
+    bool Renderer::init(rhi::Device* dev, FileWatcher* watcher) {
         m_device = dev;
 
-        m_defaultProgram = rhi::loadProgram("vs_textured", "fs_textured");
-        if (!bgfx::isValid(m_defaultProgram)) {
+        m_shaders.init(watcher);
+        m_defaultEntry = m_shaders.loadProgram("vs_textured", "fs_textured");
+        if (!m_defaultEntry || !bgfx::isValid(m_defaultEntry->program)) {
             GRIT_ERROR("Renderer: cannot load vs_textured/fs_textured");
             return false;
         }
 
         m_uTexColor = bgfx::createUniform("s_texColor", bgfx::UniformType::Sampler);
+        m_uLightDir = bgfx::createUniform("u_lightDir", bgfx::UniformType::Vec4);
+        m_uLightColor = bgfx::createUniform("u_lightColor", bgfx::UniformType::Vec4);
+        m_uBaseColor = bgfx::createUniform("u_baseColor", bgfx::UniformType::Vec4);
+        m_uTilingOffset = bgfx::createUniform("u_tilingOffset", bgfx::UniformType::Vec4);
 
         // 1x1 белая текстура для меша без материала/текстуры
         const u32 whitePixel = 0xFFFFFFFFu;
@@ -49,10 +57,13 @@ namespace grit::render {
             bgfx::destroy(m_uTexColor);
             m_uTexColor = BGFX_INVALID_HANDLE;
         }
-        if (bgfx::isValid(m_defaultProgram)) {
-            bgfx::destroy(m_defaultProgram);
-            m_defaultProgram = BGFX_INVALID_HANDLE;
-        }
+
+        if (bgfx::isValid(m_uLightDir)) { bgfx::destroy(m_uLightDir);   m_uLightDir = BGFX_INVALID_HANDLE; }
+        if (bgfx::isValid(m_uLightColor)) { bgfx::destroy(m_uLightColor); m_uLightColor = BGFX_INVALID_HANDLE; }
+
+        if (bgfx::isValid(m_uBaseColor)) { bgfx::destroy(m_uBaseColor);    m_uBaseColor = BGFX_INVALID_HANDLE; }
+        if (bgfx::isValid(m_uTilingOffset)) { bgfx::destroy(m_uTilingOffset); m_uTilingOffset = BGFX_INVALID_HANDLE; }
+        
         GRIT_INFO("Renderer shutdown");
     }
 
@@ -66,35 +77,73 @@ namespace grit::render {
         m_camera.buildProj(proj, bgfx::getCaps()->homogeneousDepth);
         bgfx::setViewTransform(0, view, proj);
 
-        // Идём по всем сущностям с Transform + MeshRenderer
+        // --- Сбор directional света ---
+        // Берём первый встретившийся (поддержку нескольких добавим позже).
+        f32 lightDir[4] = { -0.4f, -0.8f, 0.3f, 0.15f }; // дефолт если нет света
+        f32 lightColor[4] = { 1.0f,  1.0f, 1.0f, 1.0f };
+
+        {
+            auto lview = world.registry().view<grit::ecs::LightDirectional>();
+            for (auto ent : lview) {
+                auto& L = lview.get<grit::ecs::LightDirectional>(ent);
+
+                f32 lx = L.direction.x, ly = L.direction.y, lz = L.direction.z;
+                f32 len = std::sqrt(lx * lx + ly * ly + lz * lz);
+                if (len < 1e-6f) len = 1.0f;
+
+                lightDir[0] = lx / len;
+                lightDir[1] = ly / len;
+                lightDir[2] = lz / len;
+                lightDir[3] = L.ambient;
+
+                lightColor[0] = L.color.x;
+                lightColor[1] = L.color.y;
+                lightColor[2] = L.color.z;
+                lightColor[3] = L.intensity;
+                break; // используем первый
+            }
+        }
+
+        bgfx::setUniform(m_uLightDir, lightDir);
+        bgfx::setUniform(m_uLightColor, lightColor);
+
+        // --- Рендер мешей ---
         auto view2 = world.registry().view<grit::ecs::Transform, grit::ecs::MeshRenderer>();
         for (auto ent : view2) {
-            auto& t = view2.get<grit::ecs::Transform>(ent);
+            auto& tr = view2.get<grit::ecs::Transform>(ent);
             auto& mr = view2.get<grit::ecs::MeshRenderer>(ent);
-            if (!mr.mesh) continue;
+            if (!mr.visible || !mr.mesh) continue;
 
-            f32 mtx[16];
-            bx::mtxSRT(mtx,
-                t.scale.x, t.scale.y, t.scale.z,
-                t.rotationEuler.x, t.rotationEuler.y, t.rotationEuler.z,
-                t.position.x, t.position.y, t.position.z);
+            bgfx::setTransform(tr.worldMatrix);
 
-            bgfx::setTransform(mtx);
             bgfx::setVertexBuffer(0, mr.mesh->vb().handle());
             bgfx::setIndexBuffer(mr.mesh->ib().handle());
 
-            // Текстура
             bgfx::TextureHandle tex = m_whitePixel;
             if (mr.material && mr.material->albedo && mr.material->albedo->valid()) {
                 tex = mr.material->albedo->handle();
             }
             bgfx::setTexture(0, m_uTexColor, tex);
 
-            // Программа
-            bgfx::ProgramHandle prog =
-                (mr.material && bgfx::isValid(mr.material->program))
-                ? mr.material->program
-                : m_defaultProgram;
+            bgfx::ProgramHandle prog = defaultProgram();
+            if (!bgfx::isValid(prog)) continue;
+
+            // --- Параметры материала ---
+            f32 baseColor[4] = { 1, 1, 1, 1 };
+            f32 tilingOffset[4] = { 1, 1, 0, 0 };
+            if (mr.material) {
+                baseColor[0] = mr.material->baseColor.x;
+                baseColor[1] = mr.material->baseColor.y;
+                baseColor[2] = mr.material->baseColor.z;
+                baseColor[3] = mr.material->baseColor.w;
+
+                tilingOffset[0] = mr.material->tilingOffset.x;
+                tilingOffset[1] = mr.material->tilingOffset.y;
+                tilingOffset[2] = mr.material->tilingOffset.z;
+                tilingOffset[3] = mr.material->tilingOffset.w;
+            }
+            bgfx::setUniform(m_uBaseColor, baseColor);
+            bgfx::setUniform(m_uTilingOffset, tilingOffset);
 
             bgfx::setState(BGFX_STATE_DEFAULT);
             bgfx::submit(0, prog);

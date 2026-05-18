@@ -115,6 +115,49 @@ namespace grit::rhi {
         }
     }
 
+    // В Resources.cpp — добавить эти функции рядом с loadProgram
+
+    static const char* shaderDir() {
+        switch (bgfx::getRendererType()) {
+        case bgfx::RendererType::Direct3D11:
+        case bgfx::RendererType::Direct3D12: return "shaders/dx11/";
+        case bgfx::RendererType::OpenGL:     return "shaders/glsl/";
+        case bgfx::RendererType::OpenGLES:   return "shaders/essl/";
+        case bgfx::RendererType::Vulkan:     return "shaders/spirv/";
+        case bgfx::RendererType::Metal:      return "shaders/metal/";
+        default: break;
+        }
+        return "shaders/dx11/";
+    }
+
+    // ---------- Потом ----------
+    std::string shaderBinPath(const char* shaderName) {
+        return std::string(shaderDir()) + shaderName + ".bin";
+    }
+
+    bgfx::ShaderHandle loadShaderFromFile(const char* path) {
+        FILE* f = nullptr;
+        fopen_s(&f, path, "rb");
+        if (!f) {
+            GRIT_ERROR("Shader file not found: {}", path);
+            return BGFX_INVALID_HANDLE;
+        }
+        fseek(f, 0, SEEK_END);
+        long size = ftell(f);
+        fseek(f, 0, SEEK_SET);
+
+        const bgfx::Memory* mem = bgfx::alloc((u32)size + 1);
+        fread(mem->data, 1, size, f);
+        mem->data[size] = '\0';
+        fclose(f);
+
+        auto h = bgfx::createShader(mem);
+        if (bgfx::isValid(h)) {
+            bgfx::setName(h, path);
+        }
+        return h;
+    }
+
     // ---------------- Program ----------------
 
     bool Program::create(const Shader& vs, const Shader& fs) {
@@ -132,18 +175,7 @@ namespace grit::rhi {
     // ---------------- loadProgram ----------------
 
     // Выбор подкаталога шейдеров по активному бэкенду bgfx
-    static const char* shaderDir() {
-        switch (bgfx::getRendererType()) {
-        case bgfx::RendererType::Direct3D11:
-        case bgfx::RendererType::Direct3D12: return "shaders/dx11/";
-        case bgfx::RendererType::OpenGL:     return "shaders/glsl/";
-        case bgfx::RendererType::OpenGLES:   return "shaders/essl/";
-        case bgfx::RendererType::Vulkan:     return "shaders/spirv/";
-        case bgfx::RendererType::Metal:      return "shaders/metal/";
-        default: break;
-        }
-        return "shaders/dx11/";
-    }
+   
 
     bgfx::ProgramHandle loadProgram(const char* vsName, const char* fsName) {
         std::string vsPath = std::string(shaderDir()) + vsName + ".bin";

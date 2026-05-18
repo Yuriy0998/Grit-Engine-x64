@@ -44,6 +44,8 @@ namespace grit {
         void _onMouseMove(i32 x, i32 y);
         void _onMouseWheel(f32 delta);
         void _onFocusLost();   // сбросить все нажатия
+        void _resetMouseDelta();
+        void _onRawMouseDelta(i32 dx, i32 dy);
 
         // --- Внутреннее, для Window: запрошен ли захват, и подтверждение ---
         bool _captureRequested() const { return m_mouseCaptureRequested; }
@@ -61,7 +63,7 @@ namespace grit {
         bool m_hasLastMouse = false;
 
         f32  m_wheelDelta = 0.f;
-
+        bool m_hadRawThisFrame = false;
         bool m_mouseCaptureRequested = false;
         bool m_mouseCaptured = false;
     };

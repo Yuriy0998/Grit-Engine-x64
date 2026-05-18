@@ -1,17 +1,21 @@
-#include <Engine.h>
+﻿#include <Engine.h>
 #include <core/Log.h>
 #include <core/Math.h>
 #include <core/Input.h>
 #include <ecs/World.h>
+#include <ecs/SceneSystem.h>
+#include "ecs/Light.h"
 #include <render/Material.h>
 #include <render/StaticMesh.h>
 #include <render/Texture.h>
+#include <render/CameraController.h>
+
 
 int main() {
     grit::Engine engine;
 
     grit::EngineDesc desc;
-    desc.window.title = "GritNG Sample - Stage 3.1 (Input)";
+    desc.window.title = "GritNG Sample - Stage 3.4 (Time & Stats)";
     desc.window.width = 1280;
     desc.window.height = 720;
 
@@ -23,87 +27,125 @@ int main() {
     auto& assets = engine.assets();
     auto& world = engine.world();
     auto& input = engine.input();
+    auto& scene = engine.scene();
 
-    auto cubeMesh = assets.loadStaticMesh("assets/meshes/cube.grmesh");
-    if (!cubeMesh) {
-        GRIT_ERROR("Failed to load cube.grmesh");
-        engine.shutdown();
-        return -1;
+    // --- Меш + метаданные из .grmesh ---
+    const auto* grmesh = assets.loadGrMesh("assets/meshes/cube.grmesh");
+    if (!grmesh || !grmesh->mesh) { engine.shutdown(); return -1; }
+    auto cubeMesh = grmesh->mesh;
+
+    const auto defaultProgram = engine.renderer().defaultProgram();
+
+    // --- Базовый материал из .grmesh (если в нём есть описание материалов) ---
+    // Если в .grmesh нет материалов — делаем дефолтный с белым цветом и default.png
+    std::shared_ptr<grit::render::Material> baseMaterial;
+    if (!grmesh->materials.empty()) {
+        baseMaterial = assets.createMaterial(grmesh->materials[0], defaultProgram);
+    }
+    else {
+        baseMaterial = std::make_shared<grit::render::Material>();
+        baseMaterial->program = defaultProgram;
+        baseMaterial->albedo = assets.loadTexture("assets/textures/default.png");
     }
 
-    auto albedoTex = assets.loadTexture("assets/textures/default.png");
-    auto mat = std::make_shared<grit::render::Material>();
-    mat->albedo = albedoTex;
-    mat->program = engine.renderer().defaultProgram();
+    // --- Хелпер: клонируем базовый материал, меняем только цвет ---
+    // Так все варианты разделяют одну и ту же текстуру/программу,
+    // отличаются только параметрами.
+    auto tintedMaterial = [&](grit::vec4 color) {
+        auto m = std::make_shared<grit::render::Material>(*baseMaterial);
+        m->baseColor = color;
+        return m;
+        };
 
-    for (int x = -1; x <= 1; ++x) {
-        for (int z = -1; z <= 1; ++z) {
+    auto matRoot = tintedMaterial({ 1.00f, 0.85f, 0.30f, 1.0f }); // золотой
+    auto matSat = tintedMaterial({ 0.30f, 0.65f, 1.00f, 1.0f }); // голубой
+    auto matMoon = tintedMaterial({ 0.85f, 0.85f, 0.85f, 1.0f }); // серый
+
+    auto makeRenderable = [&](grit::vec3 pos, grit::vec3 scale,
+        std::shared_ptr<grit::render::Material> material) {
             auto e = world.createEntity();
             grit::ecs::Transform t;
-            t.position = grit::vec3{ (float)x * 2.f, 0.f, (float)z * 2.f };
+            t.position = pos;
+            t.scale = scale;
             world.registry().emplace<grit::ecs::Transform>(e, t);
 
             grit::ecs::MeshRenderer mr;
             mr.mesh = cubeMesh;
-            mr.material = mat;
+            mr.material = material;
             world.registry().emplace<grit::ecs::MeshRenderer>(e, mr);
-        }
+            return e;
+        };
+
+    // --- Центральный куб ---
+    auto root = makeRenderable({ 0.f, 0.f, 0.f }, { 1.5f, 1.5f, 1.5f }, matRoot);
+    world.registry().emplace<grit::ecs::Name>(root, grit::ecs::Name{ "Root" });
+
+    // --- Directional light (солнце) ---
+    {
+        auto sun = world.createEntity();
+        auto& L = world.registry().emplace<grit::ecs::LightDirectional>(sun);
+        L.direction = { -0.4f, -0.8f, 0.3f };
+        L.color = { 1.0f, 0.95f, 0.85f };  // тёплый солнечный
+        L.intensity = 1.2f;
+        L.ambient = 0.20f;
+
+        world.registry().emplace<grit::ecs::Name>(sun, grit::ecs::Name{ "Sun" });
     }
 
+    // --- 4 «спутника» как дети ---
+    std::vector<entt::entity> satellites;
+    const float satOrbit = 4.f;
+    for (int i = 0; i < 4; ++i) {
+        float ang = (float)i * (3.14159265f * 0.5f);
+        grit::vec3 p{ std::cos(ang) * satOrbit, 0.f, std::sin(ang) * satOrbit };
+        auto sat = makeRenderable(p, { 0.6f, 0.6f, 0.6f }, matSat);
+        scene.setParent(world, sat, root);
+        satellites.push_back(sat);
+
+        // --- «Луна» как внук ---
+        auto moon = makeRenderable({ 1.2f, 0.5f, 0.f }, { 0.3f, 0.3f, 0.3f }, matMoon);
+        scene.setParent(world, moon, sat);
+    }
+
+    // --- Камера ---
     auto& cam = engine.renderer().camera();
-    cam.position = grit::vec3{ 0.f, 3.f, -6.f };
-    cam.target = grit::vec3{ 0.f, 0.f,  0.f };
+    grit::render::CameraController camCtrl;
+    camCtrl.setCamera(&cam);
+    camCtrl.setInput(&input);
+    camCtrl.setPositionAndTarget({ 0.f, 6.f, -14.f }, { 0.f, 0.f, 0.f });
+    camCtrl.config().baseSpeed = 6.f;
 
     bool rotating = true;
 
     engine.setOnUpdate([&](float dt) {
-        // �����
         if (input.wasPressed(grit::Key::Escape)) {
-            GRIT_INFO("ESC pressed - quitting");
             engine.requestQuit();
             return;
         }
-
-        // ����� ��������
         if (input.wasPressed(grit::Key::Space)) {
             rotating = !rotating;
-            GRIT_INFO("Rotation: %s", rotating ? "ON" : "OFF");
         }
 
-        // ������ ����
-        if (input.wasMousePressed(grit::MouseButton::Right)) {
-            input.setMouseCaptured(true);
-            GRIT_INFO("Mouse captured");
-        }
-        if (input.wasMouseReleased(grit::MouseButton::Right)) {
-            input.setMouseCaptured(false);
-            GRIT_INFO("Mouse released");
-        }
-
-        if (input.wheelDelta() != 0.f) {
-            GRIT_INFO("Wheel: %+.1f", input.wheelDelta());
-        }
-
-        // �������� ������ ���������
-        float camSpeed = 5.f * dt;
-        if (input.isDown(grit::Key::LeftShift)) camSpeed *= 3.f;
-        if (input.isDown(grit::Key::Up))    cam.position.z += camSpeed;
-        if (input.isDown(grit::Key::Down))  cam.position.z -= camSpeed;
-        if (input.isDown(grit::Key::Left))  cam.position.x -= camSpeed;
-        if (input.isDown(grit::Key::Right)) cam.position.x += camSpeed;
+        camCtrl.update(dt);
 
         if (rotating) {
-            auto view = world.registry().view<grit::ecs::Transform>();
-            for (auto ent : view) {
-                auto& t = view.get<grit::ecs::Transform>(ent);
-                t.rotationEuler.y += dt * 1.2f;
+            // Вращаем root — спутники и луны крутятся вместе
+            auto& rt = world.registry().get<grit::ecs::Transform>(root);
+            rt.rotationEuler.y += dt * 0.6f;
+
+            // Спутники вращаются вокруг своей оси — луны крутятся с ними
+            for (auto s : satellites) {
+                auto& st = world.registry().get<grit::ecs::Transform>(s);
+                st.rotationEuler.y += dt * 2.0f;
             }
         }
         });
 
-    // ������� ���� � ������ ������, ���� tick() �� ������ false
-    while (engine.tick()) {}
+    GRIT_INFO("Hierarchy demo: root rotates -> satellites orbit -> moons follow");
+    GRIT_INFO("RMB - look, WASD/QE - move, Space - pause rotation, Esc - quit");
+    GRIT_INFO("F1 - bgfx stats, F2 - wireframe, RMB+WASD - camera, Space - pause, Esc - quit");
 
+    while (engine.tick()) {}
     engine.shutdown();
     return 0;
 }

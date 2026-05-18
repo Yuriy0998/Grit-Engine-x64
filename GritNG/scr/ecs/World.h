@@ -1,6 +1,7 @@
 ﻿#pragma once
 #include <entt/entt.hpp>
 #include "../core/Math.h"
+#include "../core/Types.h"
 #include "../asset/AssetHandle.h"
 #include <string>
 #include <memory>
@@ -13,6 +14,14 @@ namespace grit::ecs {
         vec3 position{ 0.f, 0.f, 0.f };
         vec3 rotationEuler{ 0.f, 0.f, 0.f };
         vec3 scale{ 1.f, 1.f, 1.f };
+
+        // Заполняется SceneSystem каждый кадр (parent * local). Read-only для пользователя.
+        f32  worldMatrix[16] = {
+            1,0,0,0,
+            0,1,0,0,
+            0,0,1,0,
+            0,0,0,1
+        };
     };
 
     struct Name {
@@ -20,8 +29,18 @@ namespace grit::ecs {
     };
 
     struct MeshRenderer {
-        asset::AssetHandle<render::StaticMesh>   mesh;
-        std::shared_ptr<render::Material>        material;  // может быть nullptr → default
+        std::shared_ptr<grit::render::StaticMesh> mesh;
+        std::shared_ptr<grit::render::Material>   material;
+        bool visible = true;
+    };
+
+    // --- Иерархия ---
+    struct Parent {
+        entt::entity entity = entt::null;
+    };
+
+    struct Children {
+        std::vector<entt::entity> list;
     };
 
     class World {

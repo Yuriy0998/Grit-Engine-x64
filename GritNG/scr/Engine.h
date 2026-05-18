@@ -7,6 +7,9 @@
 #include "ecs/World.h"
 #include "render/Renderer.h"
 #include "asset/AssetManager.h"
+#include "ecs/SceneSystem.h"
+#include "core/Time.h"
+#include "core/FileWatcher.h"
 
 #include <functional>
 #include <memory>
@@ -41,6 +44,10 @@ namespace grit {
         asset::AssetManager& assets() { return m_assets; }
         Window& window() { return *m_window; }
         Input& input() { return m_input; }
+        ecs::SceneSystem& scene() { return m_scene; }
+        Time& time() { return m_time; }
+        const Time& time() const { return m_time; }
+        FileWatcher& fileWatcher() { return m_watcher; }
 
     private:
         std::unique_ptr<Window>  m_window;
@@ -50,10 +57,15 @@ namespace grit {
         asset::AssetManager      m_assets;
         Input                    m_input;
         UpdateFn                 m_onUpdate;
+        FileWatcher              m_watcher;
 
+        ecs::SceneSystem m_scene;
         u64                      m_prevTimeNs = 0;
         bool                     m_initialized = false;
         bool                     m_quitRequested = false;
+        Time m_time;
+        bool m_showStats = false;  // F1 Ч полна€ статистика bgfx
+        bool m_wireframe = false;  // F2 Ч wireframe
     };
 
 } // namespace grit

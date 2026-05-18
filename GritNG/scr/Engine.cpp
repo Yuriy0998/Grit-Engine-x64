@@ -1,5 +1,6 @@
-#include "Engine.h"
+Ôªø#include "Engine.h"
 #include "core/Log.h"
+#include <bgfx/bgfx.h>
 
 #include <chrono>
 
@@ -17,7 +18,7 @@ namespace grit {
             GRIT_ERROR("Window creation failed");
             return false;
         }
-        m_window->setInput(&m_input); // Window ·Û‰ÂÚ ÒÎ‡Ú¸ ÒÓ·˚ÚËˇ ‚ Input
+        m_window->setInput(&m_input); // Window –±—É–¥–µ—Ç —Å–ª–∞—Ç—å —Å–æ–±—ã—Ç–∏—è –≤ Input
 
         // RHI
         rhi::DeviceDesc dd;
@@ -30,12 +31,12 @@ namespace grit {
             m_window.reset();
             return false;
         }
+        bgfx::setDebug(BGFX_DEBUG_TEXT);
+        m_time._reset();
 
         // Renderer
-        if (!m_renderer.init(&m_device)) {
+        if (!m_renderer.init(&m_device, &m_watcher)) {
             GRIT_ERROR("Renderer init failed");
-            m_device.shutdown();
-            m_window.reset();
             return false;
         }
 
@@ -49,6 +50,7 @@ namespace grit {
     void Engine::shutdown() {
         if (!m_initialized) return;
         m_assets.clear();
+        m_watcher.clear();
         m_renderer.shutdown();
         m_device.shutdown();
         if (m_window) {
@@ -61,41 +63,69 @@ namespace grit {
     }
 
     bool Engine::tick() {
-        if (!m_initialized) return false;
         if (m_quitRequested) return false;
-
-
-        // —ÌËÏÓÍ prev-ÒÓÒÚÓˇÌËˇ ‚‚Ó‰‡ ‰Ó Ó·‡·ÓÚÍË ÒÓÓ·˘ÂÌËÈ ˝ÚÓ„Ó Í‡‰‡
-        m_input.beginFrame();
-
-        if (!m_window->pumpMessages()) {
-            return false;
-        }
-
-        if (m_window->resized()) {
-            m_device.resize(m_window->width(), m_window->height());
-        }
-
-        // —ËÌıÓÌËÁËÛÂÏ Á‡ÔÓÒ Á‡ı‚‡Ú‡ Ï˚¯Ë
-        if (m_input._captureRequested() != m_window->isMouseCaptured()) {
-            m_window->setMouseCapture(m_input._captureRequested());
-        }
+        if (!m_window->pumpMessages()) return false;
 
         // dt
-        u64 now = (u64)std::chrono::duration_cast<std::chrono::nanoseconds>(
-            std::chrono::steady_clock::now().time_since_epoch()).count();
-        f32 dt = (f32)((now - m_prevTimeNs) * 1e-9);
-        m_prevTimeNs = now;
-        if (dt > 0.25f) dt = 0.25f;
+        using clk = std::chrono::high_resolution_clock;
+        static auto prev = clk::now();
+        auto now = clk::now();
+        f32 rawDt = std::chrono::duration<f32>(now - prev).count();
+        prev = now;
 
+        m_time._tick(rawDt);
+        f32 dt = m_time.deltaTime();
+
+        // –•–æ—Ç–∫–µ–∏ —Å—Ç–∞—Ç–∏—Å—Ç–∏–∫–∏
+        if (m_input.wasPressed(Key::F1)) {
+            m_showStats = !m_showStats;
+            bgfx::setDebug(m_showStats ? BGFX_DEBUG_STATS : BGFX_DEBUG_TEXT);
+        }
+        if (m_input.wasPressed(Key::F2)) {
+            m_wireframe = !m_wireframe;
+            bgfx::setDebug(
+                (m_showStats ? BGFX_DEBUG_STATS : BGFX_DEBUG_TEXT) |
+                (m_wireframe ? BGFX_DEBUG_WIREFRAME : 0)
+            );
+        }
+
+        // --- –û–≤–µ—Ä–ª–µ–π —Ç–µ–∫—Å—Ç–∞ (–≤—Å–µ–≥–¥–∞, –ø–æ–≤–µ—Ä—Ö —Ä–µ–Ω–¥–µ—Ä–∞) ---
+        bgfx::dbgTextClear();
+        bgfx::dbgTextPrintf(0, 0, 0x0f, "GritNG  |  %.0f FPS  %.2f ms",
+            m_time.fps(), m_time.msPerFrame());
+        {
+            const bgfx::Caps* caps = bgfx::getCaps();
+            const char* rendererName = bgfx::getRendererName(caps->rendererType);
+            bgfx::dbgTextPrintf(0, 1, 0x08, "Backend: %s  |  Frame: %llu",
+                rendererName, (unsigned long long)m_time.frameCount());
+        }
+        {
+            const bgfx::Stats* st = bgfx::getStats();
+            bgfx::dbgTextPrintf(0, 2, 0x08,
+                "Draw calls: %d  Tris: %d  GPU: %.2f ms  CPU: %.2f ms",
+                st->numDraw,
+                (int)(st->numPrims[0] /* triangles */),
+                double(st->gpuTimeEnd - st->gpuTimeBegin) * 1000.0 / double(st->gpuTimerFreq),
+                double(st->cpuTimeEnd - st->cpuTimeBegin) * 1000.0 / double(st->cpuTimerFreq)
+            );
+        }
+        bgfx::dbgTextPrintf(0, 3, 0x07, "F1 stats   F2 wireframe   Esc quit");
+
+        // User update
         if (m_onUpdate) m_onUpdate(dt);
+        
+        m_watcher.update(dt);
 
+        // –ò–µ—Ä–∞—Ä—Ö–∏—è ‚Üí –º–∏—Ä–æ–≤—ã–µ –º–∞—Ç—Ä–∏—Ü—ã
+        m_scene.update(m_world);
+
+        // –†–µ–Ω–¥–µ—Ä
         m_device.beginFrame();
         m_renderer.render(m_world, dt);
         m_device.endFrame();
 
-        m_input.endFrame();
-        return true;
+        m_input.beginFrame();   // –í–ê–ñ–ù–û: –ø–æ—Å–ª–µ —Ä–µ–Ω–¥–µ—Ä–∞, —á—Ç–æ–±—ã wasPressed —Ä–∞–±–æ—Ç–∞–ª –≤ onUpdate —ç—Ç–æ–≥–æ –∫–∞–¥—Ä–∞
+        return !m_quitRequested;
     }
 
 } // namespace grit

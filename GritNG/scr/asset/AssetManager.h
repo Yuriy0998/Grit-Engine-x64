@@ -1,11 +1,12 @@
 #pragma once
 #include "AssetHandle.h"
-#include "GrMeshLoader.h"   // GrMeshData
+#include "GrMeshLoader.h"
+#include <bgfx/bgfx.h>
 #include <string>
 #include <unordered_map>
 #include <memory>
 
-namespace grit::render { class Texture; class StaticMesh; }
+namespace grit::render { class Texture; class StaticMesh; class Material; }
 
 namespace grit::asset {
 
@@ -14,15 +15,20 @@ namespace grit::asset {
         AssetManager();
         ~AssetManager();
 
-        // Текстура: KTX/KTX2/DDS/PNG/JPG через bimg
-        AssetHandle<render::Texture> loadTexture(const std::string& path);
-
-        // .grmesh: возвращает только меш (часто этого хватает)
+        AssetHandle<render::Texture>    loadTexture(const std::string& path);
         AssetHandle<render::StaticMesh> loadStaticMesh(const std::string& path);
-
-        // .grmesh со всеми metadata (submeshes, материалы, AABB, имя)
-        // Также кэшируется — повторный вызов отдаст ту же запись
         const GrMeshData* loadGrMesh(const std::string& path);
+
+        // Создаёт материал по описанию из .grmesh.
+        // - baseColor, metallic, roughness, emissive берутся из GrMeshMaterialDesc
+        // - albedoTexture (если есть) грузится через loadTexture
+        // - program передаётся снаружи (как правило defaultProgram у Renderer'а)
+        // - textureBaseDir используется как префикс для относительных путей текстур,
+        //   например "assets/textures/"
+        std::shared_ptr<render::Material> createMaterial(
+            const GrMeshMaterialDesc& desc,
+            bgfx::ProgramHandle       program,
+            const std::string& textureBaseDir = "assets/textures/");
 
         void clear();
 

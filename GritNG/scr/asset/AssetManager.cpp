@@ -3,6 +3,7 @@
 #include "../render/Texture.h"
 #include "../render/StaticMesh.h"
 #include "../core/Log.h"
+#include "../render/Material.h"
 
 namespace grit::asset {
 
@@ -42,6 +43,54 @@ namespace grit::asset {
         auto [ins, _] = m_grmeshes.emplace(path, std::move(data));
         return &ins->second;
     }
+
+
+    std::shared_ptr<render::Material> AssetManager::createMaterial(
+        const GrMeshMaterialDesc& desc,
+        bgfx::ProgramHandle       program,
+        const std::string& textureBaseDir)
+    {
+        auto mat = std::make_shared<render::Material>();
+        mat->program = program;
+
+        // Параметры
+        mat->baseColor = vec4{
+            desc.baseColor[0], desc.baseColor[1],
+            desc.baseColor[2], desc.baseColor[3]
+        };
+        mat->tilingOffset = vec4{ 1.0f, 1.0f, 0.0f, 0.0f };
+        mat->pbrParams = vec4{ desc.metallic, desc.roughness, 0.0f, 0.0f };
+        mat->emissive = vec4{
+            desc.emissive[0], desc.emissive[1], desc.emissive[2], 1.0f
+        };
+
+        // Albedo текстура (опционально)
+        if (!desc.albedoTexture.empty()) {
+            // Если в .grmesh уже абсолютный/полный путь — используем как есть.
+            // Иначе считаем относительно textureBaseDir.
+            std::string path = desc.albedoTexture;
+            const bool looksAbsolute =
+                (path.size() >= 2 && (path[1] == ':' || path[0] == '/'))
+                || path.find('/') != std::string::npos
+                || path.find('\\') != std::string::npos;
+
+            if (!looksAbsolute) {
+                path = textureBaseDir + desc.albedoTexture;
+            }
+
+            auto tex = loadTexture(path);
+            if (tex) {
+                mat->albedo = tex;
+            }
+            else {
+                GRIT_WARN("createMaterial: failed to load albedo '%s'", path.c_str());
+            }
+        }
+
+        return mat;
+    }
+
+
 
     void AssetManager::clear() {
         m_textures.clear();

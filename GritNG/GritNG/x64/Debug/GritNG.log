@@ -1,3 +1,5 @@
 ﻿C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Microsoft\VC\v170\Microsoft.CppBuild.targets(524,5): warning MSB8004: каталог Output заканчивается не косой чертой.  Этот экземпляр сборки добавит косую черту, поскольку она необходима для правильного определения каталога Output.
   Engine.cpp
+  AssetManager.cpp
+  Создание кода...
   GritNG.vcxproj -> C:\Dev\GritNG\x64\GritNG.lib

@@ -1,11 +1,16 @@
 C:\Dev\GritNG\GritNG\scr\asset\AssetManager.cpp;C:\Dev\GritNG\GritNG\GritNG\x64\Debug\AssetManager.obj
 C:\Dev\GritNG\GritNG\scr\asset\GrMeshLoader.cpp;C:\Dev\GritNG\GritNG\GritNG\x64\Debug\GrMeshLoader.obj
+C:\Dev\GritNG\GritNG\scr\core\FileWatcher.cpp;C:\Dev\GritNG\GritNG\GritNG\x64\Debug\FileWatcher.obj
 C:\Dev\GritNG\GritNG\scr\core\Input.cpp;C:\Dev\GritNG\GritNG\GritNG\x64\Debug\Input.obj
+C:\Dev\GritNG\GritNG\scr\core\Time.cpp;C:\Dev\GritNG\GritNG\GritNG\x64\Debug\Time.obj
+C:\Dev\GritNG\GritNG\scr\ecs\SceneSystem.cpp;C:\Dev\GritNG\GritNG\GritNG\x64\Debug\SceneSystem.obj
 C:\Dev\GritNG\GritNG\scr\Engine.cpp;C:\Dev\GritNG\GritNG\GritNG\x64\Debug\Engine.obj
 C:\Dev\GritNG\GritNG\scr\platform\Window.cpp;C:\Dev\GritNG\GritNG\GritNG\x64\Debug\Window.obj
 C:\Dev\GritNG\GritNG\scr\render\Camera.cpp;C:\Dev\GritNG\GritNG\GritNG\x64\Debug\Camera.obj
+C:\Dev\GritNG\GritNG\scr\render\CameraController.cpp;C:\Dev\GritNG\GritNG\GritNG\x64\Debug\CameraController.obj
 C:\Dev\GritNG\GritNG\scr\render\Mesh.cpp;C:\Dev\GritNG\GritNG\GritNG\x64\Debug\Mesh.obj
 C:\Dev\GritNG\GritNG\scr\render\Renderer.cpp;C:\Dev\GritNG\GritNG\GritNG\x64\Debug\Renderer.obj
+C:\Dev\GritNG\GritNG\scr\render\ShaderRegistry.cpp;C:\Dev\GritNG\GritNG\GritNG\x64\Debug\ShaderRegistry.obj
 C:\Dev\GritNG\GritNG\scr\render\StaticMesh.cpp;C:\Dev\GritNG\GritNG\GritNG\x64\Debug\StaticMesh.obj
 C:\Dev\GritNG\GritNG\scr\render\Texture.cpp;C:\Dev\GritNG\GritNG\GritNG\x64\Debug\Texture.obj
 C:\Dev\GritNG\GritNG\scr\rhi\Device.cpp;C:\Dev\GritNG\GritNG\GritNG\x64\Debug\Device.obj

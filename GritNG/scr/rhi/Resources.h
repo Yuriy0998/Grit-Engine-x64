@@ -2,6 +2,7 @@
 #include "../core/Types.h"
 #include <bgfx/bgfx.h>
 #include <vector>
+#include <string>
 
 namespace grit::rhi {
 
@@ -93,5 +94,13 @@ namespace grit::rhi {
     // Утилита: загружает vs+fs из папки и собирает program
     // Возвращает bgfx::ProgramHandle (для простоты)
     bgfx::ProgramHandle loadProgram(const char* vsName, const char* fsName);
+
+    // --- Hot reload ---
+   // Возвращает абсолютный путь к скомпилированному .bin для имени шейдера
+   // (используется для FileWatcher).
+    std::string shaderBinPath(const char* shaderName);
+
+    // Загружает один шейдер (vs_/fs_) с конкретного пути в новый ShaderHandle
+    bgfx::ShaderHandle loadShaderFromFile(const char* path);
 
 } // namespace grit::rhi

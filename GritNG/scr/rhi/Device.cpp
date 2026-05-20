@@ -28,11 +28,15 @@ namespace grit::rhi {
         pd.nwh = desc.window->nativeHandle();
         bgfx::setPlatformData(pd);
 
+        // Сохраняем reset-флаги: их будем переиспользовать при ресайзе
+        m_vsync = desc.vsync;
+        m_resetFlags = (desc.vsync ? BGFX_RESET_VSYNC : BGFX_RESET_NONE);
+
         bgfx::Init init;
         init.type = toBgfx(desc.backend);
         init.resolution.width = desc.window->width();
         init.resolution.height = desc.window->height();
-        init.resolution.reset = desc.vsync ? BGFX_RESET_VSYNC : BGFX_RESET_NONE;
+        init.resolution.reset = m_resetFlags;
         init.platformData = pd;
         if (desc.debug) {
             init.debug = true;
@@ -49,12 +53,10 @@ namespace grit::rhi {
             BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH,
             0x303030ff, 1.0f, 0);
 
-        bgfx::setViewRect(0, 0, 0,
-            bgfx::BackbufferRatio::Equal);
+        bgfx::setViewRect(0, 0, 0, bgfx::BackbufferRatio::Equal);
 
         m_width = desc.window->width();
         m_height = desc.window->height();
-        m_vsync = desc.vsync;
         m_initialized = true;
 
         GRIT_INFO("RHI initialized: %s",
@@ -85,10 +87,14 @@ namespace grit::rhi {
         bgfx::frame();
     }
 
-    void Device::resize(u32 w, u32 h) {
-        if (!m_initialized || (w == m_width && h == m_height)) return;
-        m_width = w; m_height = h;
-        bgfx::reset(w, h, m_vsync ? BGFX_RESET_VSYNC : BGFX_RESET_NONE);
+    void Device::reset(uint32_t w, uint32_t h) {
+        if (!m_initialized) return;
+        if (w == 0 || h == 0) return;
+        if (w == m_width && h == m_height) return;
+
+        m_width = w;
+        m_height = h;
+        bgfx::reset(w, h, m_resetFlags);
         bgfx::setViewRect(0, 0, 0, (u16)w, (u16)h);
     }
 

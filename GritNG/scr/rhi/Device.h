@@ -18,8 +18,8 @@ namespace grit::rhi {
     struct DeviceDesc {
         Window* window = nullptr;
         Backend backend = Backend::Auto;
-        bool vsync = true;
-        bool debug = false;
+        bool    vsync = true;
+        bool    debug = false;
     };
 
     class Device {
@@ -30,16 +30,21 @@ namespace grit::rhi {
         void beginFrame();
         void endFrame();
 
-        void resize(u32 w, u32 h);
+        // Пересоздать backbuffer под новый размер окна
+        void reset(uint32_t w, uint32_t h);
 
-        u32 width()  const { return m_width; }
-        u32 height() const { return m_height; }
+        // Алиас для совместимости со старым кодом
+        void resize(u32 w, u32 h) { reset(w, h); }
+
+        uint32_t width()  const { return m_width; }
+        uint32_t height() const { return m_height; }
 
     private:
-        u32 m_width = 0;
-        u32 m_height = 0;
-        bool m_vsync = true;
-        bool m_initialized = false;
+        uint32_t m_width = 0;
+        uint32_t m_height = 0;
+        uint32_t m_resetFlags = 0;
+        bool     m_vsync = true;
+        bool     m_initialized = false;
     };
 
 } // namespace grit::rhi

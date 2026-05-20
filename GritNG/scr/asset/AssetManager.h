@@ -32,6 +32,15 @@ namespace grit::asset {
 
         void clear();
 
+        struct LoadedModel {
+            std::shared_ptr<render::StaticMesh>            mesh;
+            std::vector<std::shared_ptr<render::Material>> materials;
+        };
+
+        LoadedModel loadModel(const std::string& path,
+            bgfx::ProgramHandle program,
+            const std::string& textureBaseDir = "assets/textures/");
+
     private:
         std::unordered_map<std::string, std::shared_ptr<render::Texture>> m_textures;
         std::unordered_map<std::string, GrMeshData>                       m_grmeshes;

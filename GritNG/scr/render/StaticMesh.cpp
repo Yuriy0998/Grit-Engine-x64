@@ -1,4 +1,4 @@
-#include "StaticMesh.h"
+п»ї#include "StaticMesh.h"
 
 namespace grit::render {
 
@@ -25,9 +25,10 @@ namespace grit::render {
         const u32* indices, u32 icount) {
         if (!m_vb.create(verts, vcount * sizeof(StaticVertex), staticLayout()))
             return false;
-        // glTF индексы — обычно 32-битные
+        // glTF РёРЅРґРµРєСЃС‹ вЂ” РѕР±С‹С‡РЅРѕ 32-Р±РёС‚РЅС‹Рµ
         if (!m_ib.create(indices, icount * sizeof(u32), true))
             return false;
+        m_indexCount = icount;       // в†ђ РґРѕР±Р°РІСЊ СЌС‚Рѕ
         return true;
     }
 

@@ -106,7 +106,7 @@
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;WIN32;_WINDOWS;__STDC_FORMAT_MACROS;BX_CONFIG_DEBUG=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <AdditionalIncludeDirectories>C:\Dev\GritNG\third_party\bgfx\include;C:\Dev\GritNG\third_party\bimg\include;C:\Dev\GritNG\third_party\bx\include;C:\Dev\GritNG\third_party\entt\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Dev\GritNG\third_party\bgfx\include;C:\Dev\GritNG\third_party\bimg\include;C:\Dev\GritNG\third_party\bx\include;C:\Dev\GritNG\third_party\entt\src;C:\Dev\GritNG\third_party;C:\Dev\GritNG\third_party\imgui-docking;C:\Dev\GritNG\third_party\ImGuizmo-master\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AdditionalOptions>/Zc:__cplusplus /Zc:preprocessor %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
@@ -130,16 +130,25 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="..\third_party\imgui-docking\imgui.cpp" />
+    <ClCompile Include="..\third_party\imgui-docking\imgui_demo.cpp" />
+    <ClCompile Include="..\third_party\imgui-docking\imgui_draw.cpp" />
+    <ClCompile Include="..\third_party\imgui-docking\imgui_tables.cpp" />
+    <ClCompile Include="..\third_party\imgui-docking\imgui_widgets.cpp" />
+    <ClCompile Include="..\third_party\ImGuizmo-master\src\ImGuizmo.cpp" />
     <ClCompile Include="scr\asset\AssetManager.cpp" />
     <ClCompile Include="scr\asset\GrMeshLoader.cpp" />
     <ClCompile Include="scr\core\FileWatcher.cpp" />
     <ClCompile Include="scr\core\Input.cpp" />
     <ClCompile Include="scr\core\Time.cpp" />
     <ClCompile Include="scr\ecs\SceneSystem.cpp" />
+    <ClCompile Include="scr\Editor\EditorStyle.cpp" />
+    <ClCompile Include="scr\Editor\EditorUI.cpp" />
     <ClCompile Include="scr\Engine.cpp" />
     <ClCompile Include="scr\platform\Window.cpp" />
     <ClCompile Include="scr\render\Camera.cpp" />
     <ClCompile Include="scr\render\CameraController.cpp" />
+    <ClCompile Include="scr\render\ImGuiBackend.cpp" />
     <ClCompile Include="scr\render\Mesh.cpp" />
     <ClCompile Include="scr\render\Renderer.cpp" />
     <ClCompile Include="scr\render\ShaderRegistry.cpp" />
@@ -147,8 +156,13 @@
     <ClCompile Include="scr\render\Texture.cpp" />
     <ClCompile Include="scr\rhi\Device.cpp" />
     <ClCompile Include="scr\rhi\Resources.cpp" />
+    <ClCompile Include="scr\scene\SceneSerializer.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\third_party\imgui-docking\imconfig.h" />
+    <ClInclude Include="..\third_party\imgui-docking\imgui.h" />
+    <ClInclude Include="..\third_party\imgui-docking\imgui_internal.h" />
+    <ClInclude Include="..\third_party\ImGuizmo-master\src\ImGuizmo.h" />
     <ClInclude Include="scr\asset\AssetHandle.h" />
     <ClInclude Include="scr\asset\AssetManager.h" />
     <ClInclude Include="scr\asset\GrMeshFormat.h" />
@@ -157,6 +171,7 @@
     <ClInclude Include="scr\core\Input.h" />
     <ClInclude Include="scr\core\KeyCodes.h" />
     <ClInclude Include="scr\core\Log.h" />
+    <ClInclude Include="scr\core\LogSink.h" />
     <ClInclude Include="scr\core\Math.h" />
     <ClInclude Include="scr\core\Time.h" />
     <ClInclude Include="scr\core\Types.h" />
@@ -165,10 +180,13 @@
     <ClInclude Include="scr\ecs\Light.h" />
     <ClInclude Include="scr\ecs\SceneSystem.h" />
     <ClInclude Include="scr\ecs\World.h" />
+    <ClInclude Include="scr\Editor\EditorStyle.h" />
+    <ClInclude Include="scr\Editor\EditorUI.h" />
     <ClInclude Include="scr\Engine.h" />
     <ClInclude Include="scr\platform\Window.h" />
     <ClInclude Include="scr\render\Camera.h" />
     <ClInclude Include="scr\render\CameraController.h" />
+    <ClInclude Include="scr\render\ImGuiBackend.h" />
     <ClInclude Include="scr\render\Material.h" />
     <ClInclude Include="scr\render\Mesh.h" />
     <ClInclude Include="scr\render\Renderer.h" />
@@ -177,6 +195,7 @@
     <ClInclude Include="scr\render\Texture.h" />
     <ClInclude Include="scr\rhi\Device.h" />
     <ClInclude Include="scr\rhi\Resources.h" />
+    <ClInclude Include="scr\scene\SceneSerializer.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

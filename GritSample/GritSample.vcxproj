@@ -106,7 +106,7 @@
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <AdditionalIncludeDirectories>C:\Dev\GritNG\GritNG\scr;C:\Dev\GritNG\third_party\bgfx\include;C:\Dev\GritNG\third_party\bimg\include;C:\Dev\GritNG\third_party\bx\include;C:\Dev\GritNG\third_party\entt\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Dev\GritNG\GritNG\scr;C:\Dev\GritNG\third_party\bgfx\include;C:\Dev\GritNG\third_party\bimg\include;C:\Dev\GritNG\third_party\bx\include;C:\Dev\GritNG\third_party\entt\src;C:\Dev\GritNG\third_party\imgui-docking;C:\Dev\GritNG\third_party\ImGuizmo-master\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>

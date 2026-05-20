@@ -6,7 +6,6 @@
 #include "../core/Math.h"
 #include "../ecs/Light.h"
 
-
 #include "StaticMesh.h"
 #include "Material.h"
 #include "Texture.h"
@@ -14,11 +13,19 @@
 #include <bgfx/bgfx.h>
 #include <bx/math.h>
 #include <cmath>
+#include <cstring>
 
 namespace grit::render {
 
     bool Renderer::init(rhi::Device* dev, FileWatcher* watcher) {
         m_device = dev;
+
+        // Начальный размер вьюпорта = размеру окна
+        createViewportTargets(dev->width(), dev->height());
+
+        m_camera.aspect = (m_vpHeight > 0)
+            ? (f32)m_vpWidth / (f32)m_vpHeight
+            : 16.f / 9.f;
 
         m_shaders.init(watcher);
         m_defaultEntry = m_shaders.loadProgram("vs_textured", "fs_textured");
@@ -28,8 +35,13 @@ namespace grit::render {
         }
 
         m_uTexColor = bgfx::createUniform("s_texColor", bgfx::UniformType::Sampler);
-        m_uLightDir = bgfx::createUniform("u_lightDir", bgfx::UniformType::Vec4);
-        m_uLightColor = bgfx::createUniform("u_lightColor", bgfx::UniformType::Vec4);
+
+        // --- Lights ---
+        m_uDirLightDir = bgfx::createUniform("u_dirLightDir", bgfx::UniformType::Vec4, kMaxDirLights);
+        m_uDirLightColor = bgfx::createUniform("u_dirLightColor", bgfx::UniformType::Vec4, kMaxDirLights);
+        m_uDirLightCount = bgfx::createUniform("u_dirLightCount", bgfx::UniformType::Vec4);
+
+        // --- Material ---
         m_uBaseColor = bgfx::createUniform("u_baseColor", bgfx::UniformType::Vec4);
         m_uTilingOffset = bgfx::createUniform("u_tilingOffset", bgfx::UniformType::Vec4);
 
@@ -41,71 +53,140 @@ namespace grit::render {
             bgfx::copy(&whitePixel, 4));
 
         m_camera.position = { 0.f, 1.5f, -4.f };
-        m_camera.target = { 0.f, 0.f, 0.f };
-        m_camera.aspect = (f32)dev->width() / (f32)dev->height();
+        m_camera.target = { 0.f, 0.f,  0.f };
 
         GRIT_INFO("Renderer initialized");
         return true;
     }
 
     void Renderer::shutdown() {
-        if (bgfx::isValid(m_whitePixel)) {
-            bgfx::destroy(m_whitePixel);
-            m_whitePixel = BGFX_INVALID_HANDLE;
-        }
-        if (bgfx::isValid(m_uTexColor)) {
-            bgfx::destroy(m_uTexColor);
-            m_uTexColor = BGFX_INVALID_HANDLE;
-        }
+        if (bgfx::isValid(m_whitePixel)) { bgfx::destroy(m_whitePixel);     m_whitePixel = BGFX_INVALID_HANDLE; }
+        if (bgfx::isValid(m_uTexColor)) { bgfx::destroy(m_uTexColor);      m_uTexColor = BGFX_INVALID_HANDLE; }
 
-        if (bgfx::isValid(m_uLightDir)) { bgfx::destroy(m_uLightDir);   m_uLightDir = BGFX_INVALID_HANDLE; }
-        if (bgfx::isValid(m_uLightColor)) { bgfx::destroy(m_uLightColor); m_uLightColor = BGFX_INVALID_HANDLE; }
+        if (bgfx::isValid(m_uDirLightDir)) { bgfx::destroy(m_uDirLightDir);   m_uDirLightDir = BGFX_INVALID_HANDLE; }
+        if (bgfx::isValid(m_uDirLightColor)) { bgfx::destroy(m_uDirLightColor); m_uDirLightColor = BGFX_INVALID_HANDLE; }
+        if (bgfx::isValid(m_uDirLightCount)) { bgfx::destroy(m_uDirLightCount); m_uDirLightCount = BGFX_INVALID_HANDLE; }
 
-        if (bgfx::isValid(m_uBaseColor)) { bgfx::destroy(m_uBaseColor);    m_uBaseColor = BGFX_INVALID_HANDLE; }
-        if (bgfx::isValid(m_uTilingOffset)) { bgfx::destroy(m_uTilingOffset); m_uTilingOffset = BGFX_INVALID_HANDLE; }
-        
+        if (bgfx::isValid(m_uBaseColor)) { bgfx::destroy(m_uBaseColor);     m_uBaseColor = BGFX_INVALID_HANDLE; }
+        if (bgfx::isValid(m_uTilingOffset)) { bgfx::destroy(m_uTilingOffset);  m_uTilingOffset = BGFX_INVALID_HANDLE; }
+
+        destroyViewportTargets();
+
         GRIT_INFO("Renderer shutdown");
     }
 
-    void Renderer::render(ecs::World& world, f32 /*dt*/) {
-        if (m_device->height() > 0) {
-            m_camera.aspect = (f32)m_device->width() / (f32)m_device->height();
+    void Renderer::createViewportTargets(u32 w, u32 h)
+    {
+        if (w == 0 || h == 0) return;
+        if (w == m_vpWidth && h == m_vpHeight && bgfx::isValid(m_vpFB)) return;
+
+        destroyViewportTargets();
+
+        const uint64_t colorFlags =
+            BGFX_TEXTURE_RT
+            | BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP
+            | BGFX_SAMPLER_MIN_POINT | BGFX_SAMPLER_MAG_POINT;
+        const uint64_t depthFlags = BGFX_TEXTURE_RT_WRITE_ONLY;
+
+        m_vpColor = bgfx::createTexture2D(
+            (uint16_t)w, (uint16_t)h, false, 1,
+            bgfx::TextureFormat::BGRA8, colorFlags);
+
+        m_vpDepth = bgfx::createTexture2D(
+            (uint16_t)w, (uint16_t)h, false, 1,
+            bgfx::TextureFormat::D24S8, depthFlags);
+
+        bgfx::TextureHandle atts[2] = { m_vpColor, m_vpDepth };
+        m_vpFB = bgfx::createFrameBuffer(2, atts, false);
+
+        m_vpWidth = w;
+        m_vpHeight = h;
+    }
+
+    void Renderer::destroyViewportTargets()
+    {
+        if (bgfx::isValid(m_vpFB)) { bgfx::destroy(m_vpFB);    m_vpFB = BGFX_INVALID_HANDLE; }
+        if (bgfx::isValid(m_vpColor)) { bgfx::destroy(m_vpColor); m_vpColor = BGFX_INVALID_HANDLE; }
+        if (bgfx::isValid(m_vpDepth)) { bgfx::destroy(m_vpDepth); m_vpDepth = BGFX_INVALID_HANDLE; }
+        m_vpWidth = m_vpHeight = 0;
+    }
+
+    void Renderer::resizeViewport(u32 w, u32 h)
+    {
+        createViewportTargets(w, h);
+    }
+
+    void Renderer::render(ecs::World& world, f32 /*dt*/)
+    {
+        if (m_vpWidth == 0 || m_vpHeight == 0 || !bgfx::isValid(m_vpFB)) {
+            return; // вьюпорт ещё не готов
         }
 
-        f32 view[16], proj[16];
-        m_camera.buildView(view);
-        m_camera.buildProj(proj, bgfx::getCaps()->homogeneousDepth);
-        bgfx::setViewTransform(0, view, proj);
+        // --- Очистка главного backbuffer (под dockspace) ---
+        bgfx::setViewRect(0, 0, 0,
+            (uint16_t)m_device->width(),
+            (uint16_t)m_device->height());
+        bgfx::setViewClear(0,
+            BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH,
+            0x1a1a1aff, 1.0f, 0);
+        bgfx::touch(0);
 
-        // --- Сбор directional света ---
-        // Берём первый встретившийся (поддержку нескольких добавим позже).
-        f32 lightDir[4] = { -0.4f, -0.8f, 0.3f, 0.15f }; // дефолт если нет света
-        f32 lightColor[4] = { 1.0f,  1.0f, 1.0f, 1.0f };
+        // --- Aspect камеры по реальному вьюпорту ---
+        m_camera.aspect = (f32)m_vpWidth / (f32)m_vpHeight;
+
+        // --- Матрицы камеры (сохраняем в поля для ImGuizmo) ---
+        m_camera.buildView(m_viewMtx);
+        m_camera.buildProj(m_projMtx, bgfx::getCaps()->homogeneousDepth);
+
+        // --- View 1 (scene) → наш framebuffer ---
+        bgfx::setViewFrameBuffer(kViewScene, m_vpFB);
+        bgfx::setViewRect(kViewScene, 0, 0,
+            (uint16_t)m_vpWidth, (uint16_t)m_vpHeight);
+        bgfx::setViewClear(kViewScene,
+            BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH,
+            0x202225ff, 1.0f, 0);
+        bgfx::setViewTransform(kViewScene, m_viewMtx, m_projMtx);
+        bgfx::touch(kViewScene);
+
+        // --- Сбор directional lights ---
+        f32 dirLightDir[kMaxDirLights * 4] = {};
+        f32 dirLightColor[kMaxDirLights * 4] = {};
+        u32 dirLightCount = 0;
+        f32 ambient = 0.0f;
 
         {
             auto lview = world.registry().view<grit::ecs::LightDirectional>();
             for (auto ent : lview) {
+                if (dirLightCount >= kMaxDirLights) break;
+
                 auto& L = lview.get<grit::ecs::LightDirectional>(ent);
 
                 f32 lx = L.direction.x, ly = L.direction.y, lz = L.direction.z;
                 f32 len = std::sqrt(lx * lx + ly * ly + lz * lz);
                 if (len < 1e-6f) len = 1.0f;
 
-                lightDir[0] = lx / len;
-                lightDir[1] = ly / len;
-                lightDir[2] = lz / len;
-                lightDir[3] = L.ambient;
+                const u32 i = dirLightCount * 4;
+                dirLightDir[i + 0] = lx / len;
+                dirLightDir[i + 1] = ly / len;
+                dirLightDir[i + 2] = lz / len;
+                dirLightDir[i + 3] = 0.0f;
 
-                lightColor[0] = L.color.x;
-                lightColor[1] = L.color.y;
-                lightColor[2] = L.color.z;
-                lightColor[3] = L.intensity;
-                break; // используем первый
+                dirLightColor[i + 0] = L.color.x;
+                dirLightColor[i + 1] = L.color.y;
+                dirLightColor[i + 2] = L.color.z;
+                dirLightColor[i + 3] = L.intensity;
+
+                if (dirLightCount == 0) ambient = L.ambient;
+                ++dirLightCount;
             }
         }
 
-        bgfx::setUniform(m_uLightDir, lightDir);
-        bgfx::setUniform(m_uLightColor, lightColor);
+        if (dirLightCount == 0) ambient = 0.15f;
+
+        f32 lightCountVec[4] = { (f32)dirLightCount, ambient, 0.0f, 0.0f };
+        bgfx::setUniform(m_uDirLightDir, dirLightDir, kMaxDirLights);
+        bgfx::setUniform(m_uDirLightColor, dirLightColor, kMaxDirLights);
+        bgfx::setUniform(m_uDirLightCount, lightCountVec);
 
         // --- Рендер мешей ---
         auto view2 = world.registry().view<grit::ecs::Transform, grit::ecs::MeshRenderer>();
@@ -114,39 +195,71 @@ namespace grit::render {
             auto& mr = view2.get<grit::ecs::MeshRenderer>(ent);
             if (!mr.visible || !mr.mesh) continue;
 
-            bgfx::setTransform(tr.worldMatrix);
-
-            bgfx::setVertexBuffer(0, mr.mesh->vb().handle());
-            bgfx::setIndexBuffer(mr.mesh->ib().handle());
-
-            bgfx::TextureHandle tex = m_whitePixel;
-            if (mr.material && mr.material->albedo && mr.material->albedo->valid()) {
-                tex = mr.material->albedo->handle();
-            }
-            bgfx::setTexture(0, m_uTexColor, tex);
-
             bgfx::ProgramHandle prog = defaultProgram();
             if (!bgfx::isValid(prog)) continue;
 
-            // --- Параметры материала ---
-            f32 baseColor[4] = { 1, 1, 1, 1 };
-            f32 tilingOffset[4] = { 1, 1, 0, 0 };
-            if (mr.material) {
-                baseColor[0] = mr.material->baseColor.x;
-                baseColor[1] = mr.material->baseColor.y;
-                baseColor[2] = mr.material->baseColor.z;
-                baseColor[3] = mr.material->baseColor.w;
+            const auto& vb = mr.mesh->vb().handle();
+            const auto& ib = mr.mesh->ib().handle();
 
-                tilingOffset[0] = mr.material->tilingOffset.x;
-                tilingOffset[1] = mr.material->tilingOffset.y;
-                tilingOffset[2] = mr.material->tilingOffset.z;
-                tilingOffset[3] = mr.material->tilingOffset.w;
+            // Хелпер сабмита одного диапазона
+            auto submitRange = [&](const std::shared_ptr<Material>& mat,
+                u32 indexStart, u32 indexCount)
+                {
+                    bgfx::setTransform(tr.worldMatrix);
+                    bgfx::setVertexBuffer(0, vb);
+
+                    if (indexCount == UINT32_MAX) {
+                        bgfx::setIndexBuffer(ib);
+                    }
+                    else {
+                        bgfx::setIndexBuffer(ib, indexStart, indexCount);
+                    }
+
+                    // Текстура
+                    bgfx::TextureHandle tex = m_whitePixel;
+                    if (mat && mat->albedo && mat->albedo->valid()) {
+                        tex = mat->albedo->handle();
+                    }
+                    bgfx::setTexture(0, m_uTexColor, tex);
+
+                    // Параметры материала
+                    f32 baseColor[4] = { 1, 1, 1, 1 };
+                    f32 tilingOffset[4] = { 1, 1, 0, 0 };
+                    if (mat) {
+                        baseColor[0] = mat->baseColor.x;
+                        baseColor[1] = mat->baseColor.y;
+                        baseColor[2] = mat->baseColor.z;
+                        baseColor[3] = mat->baseColor.w;
+
+                        tilingOffset[0] = mat->tilingOffset.x;
+                        tilingOffset[1] = mat->tilingOffset.y;
+                        tilingOffset[2] = mat->tilingOffset.z;
+                        tilingOffset[3] = mat->tilingOffset.w;
+                    }
+                    bgfx::setUniform(m_uBaseColor, baseColor);
+                    bgfx::setUniform(m_uTilingOffset, tilingOffset);
+
+                    bgfx::setState(BGFX_STATE_DEFAULT);
+                    bgfx::submit(kViewScene, prog);  // ← ВАЖНО: kViewScene, не 0
+                };
+
+            // Хелпер выбора материала с защитой границ
+            auto pickMaterial = [&](u32 materialIndex) -> std::shared_ptr<Material> {
+                if (mr.materials.empty()) return nullptr;
+                const size_t n = mr.materials.size();
+                const size_t i = (materialIndex < n) ? (size_t)materialIndex : (n - 1);
+                return mr.materials[i];
+                };
+
+            const auto& subs = mr.mesh->submeshes();
+            if (subs.empty()) {
+                submitRange(pickMaterial(0), 0, UINT32_MAX);
             }
-            bgfx::setUniform(m_uBaseColor, baseColor);
-            bgfx::setUniform(m_uTilingOffset, tilingOffset);
-
-            bgfx::setState(BGFX_STATE_DEFAULT);
-            bgfx::submit(0, prog);
+            else {
+                for (const auto& s : subs) {
+                    submitRange(pickMaterial(s.materialIndex), s.indexStart, s.indexCount);
+                }
+            }
         }
     }
 

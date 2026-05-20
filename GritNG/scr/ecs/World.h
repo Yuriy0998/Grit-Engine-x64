@@ -30,8 +30,20 @@ namespace grit::ecs {
 
     struct MeshRenderer {
         std::shared_ptr<grit::render::StaticMesh> mesh;
-        std::shared_ptr<grit::render::Material>   material;
+        std::vector<std::shared_ptr<grit::render::Material>> materials;
+
+        // Путь к ассету меша (для сериализации). Опциональный.
+        std::string meshPath;
+
         bool visible = true;
+
+        void setMaterial(std::shared_ptr<grit::render::Material> m) {
+            materials.clear();
+            if (m) materials.push_back(std::move(m));
+        }
+        std::shared_ptr<grit::render::Material> material() const {
+            return materials.empty() ? nullptr : materials.front();
+        }
     };
 
     // --- Иерархия ---

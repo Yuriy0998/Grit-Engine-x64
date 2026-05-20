@@ -218,6 +218,21 @@ namespace grit::asset {
             GRIT_ERROR("grmesh: StaticMesh creation failed: %s", path.c_str());
             return false;
         }
+
+        // Прокидываем сабмеши в меш
+        {
+            std::vector<render::Submesh> subs;
+            subs.reserve(out.submeshes.size());
+            for (const auto& s : out.submeshes) {
+                render::Submesh r;
+                r.indexStart = s.indexStart;
+                r.indexCount = s.indexCount;
+                r.materialIndex = s.materialIndex;
+                subs.push_back(r);
+            }
+            mesh->setSubmeshes(std::move(subs));
+        }
+
         out.mesh = mesh;
 
         GRIT_INFO("grmesh loaded: %s (verts=%u, idx=%u, submeshes=%u, mats=%u)",

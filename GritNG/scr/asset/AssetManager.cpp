@@ -91,6 +91,27 @@ namespace grit::asset {
     }
 
 
+    AssetManager::LoadedModel AssetManager::loadModel(
+        const std::string& path,
+        bgfx::ProgramHandle program,
+        const std::string& textureBaseDir)
+    {
+        LoadedModel result;
+
+        const GrMeshData* data = loadGrMesh(path);
+        if (!data || !data->mesh) {
+            return result;
+        }
+        result.mesh = data->mesh;
+
+        result.materials.reserve(data->materials.size());
+        for (const auto& desc : data->materials) {
+            result.materials.push_back(createMaterial(desc, program, textureBaseDir));
+        }
+
+        return result;
+    }
+
 
     void AssetManager::clear() {
         m_textures.clear();

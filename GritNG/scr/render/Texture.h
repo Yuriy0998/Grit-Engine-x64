@@ -1,6 +1,7 @@
 #pragma once
 #include "../core/Types.h"
 #include <bgfx/bgfx.h>
+#include <string>
 
 namespace grit::render {
 
@@ -9,11 +10,9 @@ namespace grit::render {
         Texture() = default;
         ~Texture();
 
-        // Запрещаем копирование
         Texture(const Texture&) = delete;
         Texture& operator=(const Texture&) = delete;
 
-        // Загружает любой формат, который понимает bimg
         bool loadFromFile(const char* path);
         void destroy();
 
@@ -23,10 +22,15 @@ namespace grit::render {
         u32 width()  const { return m_width; }
         u32 height() const { return m_height; }
 
+        // Путь к исходному файлу (для сериализации/инспектора)
+        const std::string& path() const { return m_path; }
+        void setPath(const std::string& p) { m_path = p; }
+
     private:
         bgfx::TextureHandle m_handle = BGFX_INVALID_HANDLE;
         u32 m_width = 0;
         u32 m_height = 0;
+        std::string m_path;
     };
 
 } // namespace grit::render

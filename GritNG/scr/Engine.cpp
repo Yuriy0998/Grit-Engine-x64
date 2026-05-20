@@ -1,6 +1,8 @@
 ﻿#include "Engine.h"
 #include "core/Log.h"
 #include <bgfx/bgfx.h>
+#include "Editor/EditorStyle.h"
+
 
 #include <chrono>
 
@@ -40,6 +42,18 @@ namespace grit {
             return false;
         }
 
+        // 1) Сначала ImGui-контекст и бэкенд
+        if (!m_imgui.init(/*viewId*/ 200, m_renderer.shaders())) {
+            GRIT_ERROR("ImGui init failed");
+            return false;
+        }
+
+        // 2) ТОЛЬКО ТЕПЕРЬ можно трогать стиль
+        grit::editor::applyDarkTheme();
+
+        // 3) Редактор
+        m_editor.init(this);
+
         m_prevTimeNs = (u64)std::chrono::duration_cast<std::chrono::nanoseconds>(
             std::chrono::steady_clock::now().time_since_epoch()).count();
         m_initialized = true;
@@ -51,7 +65,10 @@ namespace grit {
         if (!m_initialized) return;
         m_assets.clear();
         m_watcher.clear();
+        m_imgui.shutdown();
         m_renderer.shutdown();
+
+
         m_device.shutdown();
         if (m_window) {
             m_window->destroy();
@@ -66,7 +83,17 @@ namespace grit {
         if (m_quitRequested) return false;
         if (!m_window->pumpMessages()) return false;
 
-        // dt
+        // Реакция на ресайз окна
+        const uint32_t winW = m_window->width();
+        const uint32_t winH = m_window->height();
+        if (winW > 0 && winH > 0 &&
+            (winW != m_device.width() || winH != m_device.height()))
+        {
+            m_device.reset(winW, winH);
+        }
+
+
+
         using clk = std::chrono::high_resolution_clock;
         static auto prev = clk::now();
         auto now = clk::now();
@@ -89,42 +116,35 @@ namespace grit {
             );
         }
 
-        // --- Оверлей текста (всегда, поверх рендера) ---
-        bgfx::dbgTextClear();
-        bgfx::dbgTextPrintf(0, 0, 0x0f, "GritNG  |  %.0f FPS  %.2f ms",
-            m_time.fps(), m_time.msPerFrame());
-        {
-            const bgfx::Caps* caps = bgfx::getCaps();
-            const char* rendererName = bgfx::getRendererName(caps->rendererType);
-            bgfx::dbgTextPrintf(0, 1, 0x08, "Backend: %s  |  Frame: %llu",
-                rendererName, (unsigned long long)m_time.frameCount());
-        }
-        {
-            const bgfx::Stats* st = bgfx::getStats();
-            bgfx::dbgTextPrintf(0, 2, 0x08,
-                "Draw calls: %d  Tris: %d  GPU: %.2f ms  CPU: %.2f ms",
-                st->numDraw,
-                (int)(st->numPrims[0] /* triangles */),
-                double(st->gpuTimeEnd - st->gpuTimeBegin) * 1000.0 / double(st->gpuTimerFreq),
-                double(st->cpuTimeEnd - st->cpuTimeBegin) * 1000.0 / double(st->cpuTimerFreq)
-            );
-        }
-        bgfx::dbgTextPrintf(0, 3, 0x07, "F1 stats   F2 wireframe   Esc quit");
+        // Текстовый оверлей bgfx (оставим — он полезен и не мешает ImGui)
+        //bgfx::dbgTextClear();
+        //bgfx::dbgTextPrintf(0, 0, 0x0f, "GritNG  |  %.0f FPS  %.2f ms",
+        //    m_time.fps(), m_time.msPerFrame());
+       // {
+       //     const bgfx::Caps* caps = bgfx::getCaps();
+       //     const char* rendererName = bgfx::getRendererName(caps->rendererType);
+       //     bgfx::dbgTextPrintf(0, 1, 0x08, "Backend: %s  |  Frame: %llu",
+       //         rendererName, (unsigned long long)m_time.frameCount());
+       // }
 
         // User update
         if (m_onUpdate) m_onUpdate(dt);
-        
-        m_watcher.update(dt);
 
-        // Иерархия → мировые матрицы
+        m_watcher.update(dt);
         m_scene.update(m_world);
 
-        // Рендер
+        // Рендер сцены
         m_device.beginFrame();
         m_renderer.render(m_world, dt);
+
+        // ImGui поверх
+        m_imgui.beginFrame(*m_window, m_input, dt);
+        m_editor.draw();
+        m_imgui.endFrame();
+
         m_device.endFrame();
 
-        m_input.beginFrame();   // ВАЖНО: после рендера, чтобы wasPressed работал в onUpdate этого кадра
+        m_input.beginFrame();
         return !m_quitRequested;
     }
 

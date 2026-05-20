@@ -1,4 +1,4 @@
-#include "Texture.h"
+п»ї#include "Texture.h"
 #include "../core/Log.h"
 
 #include <bgfx/bgfx.h>
@@ -11,7 +11,12 @@
 
 namespace grit::render {
 
-    // Простейший allocator на стандартном malloc/free для bimg
+
+
+
+
+
+    // РџСЂРѕСЃС‚РµР№С€РёР№ allocator РЅР° СЃС‚Р°РЅРґР°СЂС‚РЅРѕРј malloc/free РґР»СЏ bimg
     class DefaultAllocator : public bx::AllocatorI {
     public:
         void* realloc(void* _ptr, size_t _size, size_t /*_align*/,
@@ -43,7 +48,9 @@ namespace grit::render {
     }
 
     bool Texture::loadFromFile(const char* path) {
+        m_path = path ? path : "";   // в†ђ РґРѕР±Р°РІСЊ СЌС‚Рѕ РІ РЅР°С‡Р°Р»Рµ
         std::vector<u8> raw;
+
         if (!readFile(path, raw)) {
             GRIT_ERROR("Texture: cannot open %s", path);
             return false;

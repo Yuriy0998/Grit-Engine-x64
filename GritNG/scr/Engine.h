@@ -1,5 +1,8 @@
 #pragma once
 
+
+#include "render/ImGuiBackend.h"
+#include "editor/EditorUI.h"
 #include "core/Types.h"
 #include "core/Input.h"
 #include "rhi/Device.h"
@@ -38,7 +41,11 @@ namespace grit {
 
         void requestQuit() { m_quitRequested = true; }
         bool quitRequested() const { return m_quitRequested; }
+        bool imguiWantsMouse()    const { return m_imgui.wantCaptureMouse(); }
+        bool imguiWantsKeyboard() const { return m_imgui.wantCaptureKeyboard(); }
 
+
+        editor::EditorUI& editor() { return m_editor; }
         ecs::World& world() { return m_world; }
         render::Renderer& renderer() { return m_renderer; }
         asset::AssetManager& assets() { return m_assets; }
@@ -66,6 +73,9 @@ namespace grit {
         Time m_time;
         bool m_showStats = false;  // F1 Ч полна€ статистика bgfx
         bool m_wireframe = false;  // F2 Ч wireframe
+
+        render::ImGuiBackend m_imgui;
+        editor::EditorUI     m_editor;
     };
 
 } // namespace grit

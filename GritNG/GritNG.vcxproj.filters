@@ -99,6 +99,9 @@
     <ClCompile Include="..\third_party\ImGuizmo-master\src\ImGuizmo.cpp">
       <Filter>third_party</Filter>
     </ClCompile>
+    <ClCompile Include="scr\render\Primitives.cpp">
+      <Filter>Исходные файлы</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="scr\core\Types.h">
@@ -211,6 +214,9 @@
     </ClInclude>
     <ClInclude Include="..\third_party\ImGuizmo-master\src\ImGuizmo.h">
       <Filter>third_party</Filter>
+    </ClInclude>
+    <ClInclude Include="scr\render\Primitives.h">
+      <Filter>Файлы заголовков</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

@@ -13,7 +13,6 @@ namespace grit::render {
         f32  nearPlane = 0.1f;
         f32  farPlane = 1000.0f;
 
-        // Заполняет 16 float в column-major для bgfx
         void buildView(f32* outView) const;
         void buildProj(f32* outProj, bool homogeneousNDC) const;
     };

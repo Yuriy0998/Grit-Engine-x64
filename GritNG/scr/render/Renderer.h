@@ -20,6 +20,7 @@ namespace grit::render {
         void render(ecs::World& world, f32 dt);
         void resizeViewport(u32 w, u32 h);
         Camera& camera() { return m_camera; }
+        bool m_showGrid = true;
 
         bgfx::ProgramHandle defaultProgram() const {
             if (m_defaultEntry) return m_defaultEntry->program;
@@ -67,6 +68,12 @@ namespace grit::render {
 
         bgfx::UniformHandle m_uBaseColor = BGFX_INVALID_HANDLE;
         bgfx::UniformHandle m_uTilingOffset = BGFX_INVALID_HANDLE;
+
+        ShaderRegistry::Entry* m_gridEntry = nullptr;
+        bgfx::UniformHandle m_uGridInvViewProj = BGFX_INVALID_HANDLE;
+        bgfx::UniformHandle m_uGridParams = BGFX_INVALID_HANDLE;
+
+        void drawGrid();
 
         float m_viewMtx[16] = {};
         float m_projMtx[16] = {};

@@ -150,6 +150,7 @@
     <ClCompile Include="scr\render\CameraController.cpp" />
     <ClCompile Include="scr\render\ImGuiBackend.cpp" />
     <ClCompile Include="scr\render\Mesh.cpp" />
+    <ClCompile Include="scr\render\Primitives.cpp" />
     <ClCompile Include="scr\render\Renderer.cpp" />
     <ClCompile Include="scr\render\ShaderRegistry.cpp" />
     <ClCompile Include="scr\render\StaticMesh.cpp" />
@@ -189,6 +190,7 @@
     <ClInclude Include="scr\render\ImGuiBackend.h" />
     <ClInclude Include="scr\render\Material.h" />
     <ClInclude Include="scr\render\Mesh.h" />
+    <ClInclude Include="scr\render\Primitives.h" />
     <ClInclude Include="scr\render\Renderer.h" />
     <ClInclude Include="scr\render\ShaderRegistry.h" />
     <ClInclude Include="scr\render\StaticMesh.h" />

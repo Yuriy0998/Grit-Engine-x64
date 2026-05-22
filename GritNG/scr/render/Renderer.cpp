@@ -20,7 +20,6 @@ namespace grit::render {
     bool Renderer::init(rhi::Device* dev, FileWatcher* watcher) {
         m_device = dev;
 
-        // Начальный размер вьюпорта = размеру окна
         createViewportTargets(dev->width(), dev->height());
 
         m_camera.aspect = (m_vpHeight > 0)
@@ -28,12 +27,23 @@ namespace grit::render {
             : 16.f / 9.f;
 
         m_shaders.init(watcher);
+
+        // --- Default lit shader ---
         m_defaultEntry = m_shaders.loadProgram("vs_textured", "fs_textured");
         if (!m_defaultEntry || !bgfx::isValid(m_defaultEntry->program)) {
             GRIT_ERROR("Renderer: cannot load vs_textured/fs_textured");
             return false;
         }
 
+        // --- Grid shader ---
+        m_gridEntry = m_shaders.loadProgram("vs_grid", "fs_grid");
+        if (!m_gridEntry || !bgfx::isValid(m_gridEntry->program)) {
+            GRIT_WARN("Renderer: grid shader failed to load");
+        }
+        m_uGridInvViewProj = bgfx::createUniform("gridInvVP", bgfx::UniformType::Mat4);
+        m_uGridParams = bgfx::createUniform("gridParams", bgfx::UniformType::Vec4);
+
+        // --- Common ---
         m_uTexColor = bgfx::createUniform("s_texColor", bgfx::UniformType::Sampler);
 
         // --- Lights ---
@@ -45,7 +55,7 @@ namespace grit::render {
         m_uBaseColor = bgfx::createUniform("u_baseColor", bgfx::UniformType::Vec4);
         m_uTilingOffset = bgfx::createUniform("u_tilingOffset", bgfx::UniformType::Vec4);
 
-        // 1x1 белая текстура для меша без материала/текстуры
+        // 1x1 white pixel
         const u32 whitePixel = 0xFFFFFFFFu;
         m_whitePixel = bgfx::createTexture2D(
             1, 1, false, 1, bgfx::TextureFormat::RGBA8,
@@ -59,6 +69,56 @@ namespace grit::render {
         return true;
     }
 
+    void Renderer::drawGrid()
+    {
+        if (!m_gridEntry || !bgfx::isValid(m_gridEntry->program)) return;
+
+        // Layout
+        static bgfx::VertexLayout layout;
+        static bool layoutInit = false;
+        if (!layoutInit) {
+            layout.begin()
+                .add(bgfx::Attrib::Position, 3, bgfx::AttribType::Float)
+                .end();
+            layoutInit = true;
+        }
+
+        // Fullscreen quad как 2 треугольника
+        struct PosVtx { float x, y, z; };
+        const uint32_t kNumVerts = 6;
+
+        if (kNumVerts != bgfx::getAvailTransientVertexBuffer(kNumVerts, layout))
+            return;
+
+        bgfx::TransientVertexBuffer tvb;
+        bgfx::allocTransientVertexBuffer(&tvb, kNumVerts, layout);
+        PosVtx* v = (PosVtx*)tvb.data;
+        v[0] = { -1.f, -1.f, 0.f }; v[1] = { 1.f, -1.f, 0.f }; v[2] = { 1.f,  1.f, 0.f };
+        v[3] = { -1.f, -1.f, 0.f }; v[4] = { 1.f,  1.f, 0.f }; v[5] = { -1.f,  1.f, 0.f };
+
+        // Inverse(viewProj)
+        float vp[16];
+        bx::mtxMul(vp, m_viewMtx, m_projMtx);
+        float invVp[16];
+        bx::mtxInverse(invVp, vp);
+        bgfx::setUniform(m_uGridInvViewProj, invVp);
+
+        float gridParams[4] = { m_camera.nearPlane, m_camera.farPlane, 0.f, 0.f };
+        bgfx::setUniform(m_uGridParams, gridParams);
+
+        bgfx::setVertexBuffer(0, &tvb);
+
+        // Прозрачный, читает Z, не пишет Z, рисуем ДО мешей
+        bgfx::setState(
+            BGFX_STATE_WRITE_RGB
+            | BGFX_STATE_WRITE_A
+            | BGFX_STATE_DEPTH_TEST_ALWAYS
+            | BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_SRC_ALPHA, BGFX_STATE_BLEND_INV_SRC_ALPHA)
+        );
+
+        bgfx::submit(kViewScene, m_gridEntry->program);
+    }
+
     void Renderer::shutdown() {
         if (bgfx::isValid(m_whitePixel)) { bgfx::destroy(m_whitePixel);     m_whitePixel = BGFX_INVALID_HANDLE; }
         if (bgfx::isValid(m_uTexColor)) { bgfx::destroy(m_uTexColor);      m_uTexColor = BGFX_INVALID_HANDLE; }
@@ -69,6 +129,9 @@ namespace grit::render {
 
         if (bgfx::isValid(m_uBaseColor)) { bgfx::destroy(m_uBaseColor);     m_uBaseColor = BGFX_INVALID_HANDLE; }
         if (bgfx::isValid(m_uTilingOffset)) { bgfx::destroy(m_uTilingOffset);  m_uTilingOffset = BGFX_INVALID_HANDLE; }
+
+        if (bgfx::isValid(m_uGridInvViewProj)) { bgfx::destroy(m_uGridInvViewProj); m_uGridInvViewProj = BGFX_INVALID_HANDLE; }
+        if (bgfx::isValid(m_uGridParams)) { bgfx::destroy(m_uGridParams);      m_uGridParams = BGFX_INVALID_HANDLE; }
 
         destroyViewportTargets();
 
@@ -118,11 +181,9 @@ namespace grit::render {
 
     void Renderer::render(ecs::World& world, f32 /*dt*/)
     {
-        if (m_vpWidth == 0 || m_vpHeight == 0 || !bgfx::isValid(m_vpFB)) {
-            return; // вьюпорт ещё не готов
-        }
+        if (m_vpWidth == 0 || m_vpHeight == 0 || !bgfx::isValid(m_vpFB)) return;
 
-        // --- Очистка главного backbuffer (под dockspace) ---
+        // --- Backbuffer ---
         bgfx::setViewRect(0, 0, 0,
             (uint16_t)m_device->width(),
             (uint16_t)m_device->height());
@@ -131,14 +192,12 @@ namespace grit::render {
             0x1a1a1aff, 1.0f, 0);
         bgfx::touch(0);
 
-        // --- Aspect камеры по реальному вьюпорту ---
+        // --- Камера ---
         m_camera.aspect = (f32)m_vpWidth / (f32)m_vpHeight;
-
-        // --- Матрицы камеры (сохраняем в поля для ImGuizmo) ---
         m_camera.buildView(m_viewMtx);
         m_camera.buildProj(m_projMtx, bgfx::getCaps()->homogeneousDepth);
 
-        // --- View 1 (scene) → наш framebuffer ---
+        // --- View 1 (scene) ---
         bgfx::setViewFrameBuffer(kViewScene, m_vpFB);
         bgfx::setViewRect(kViewScene, 0, 0,
             (uint16_t)m_vpWidth, (uint16_t)m_vpHeight);
@@ -147,6 +206,9 @@ namespace grit::render {
             0x202225ff, 1.0f, 0);
         bgfx::setViewTransform(kViewScene, m_viewMtx, m_projMtx);
         bgfx::touch(kViewScene);
+
+        // --- Grid (после настройки view!) ---
+        if (m_showGrid) drawGrid();
 
         // --- Сбор directional lights ---
         f32 dirLightDir[kMaxDirLights * 4] = {};

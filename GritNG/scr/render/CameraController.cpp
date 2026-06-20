@@ -41,7 +41,8 @@ namespace grit {
                 }
             }
             else {
-                m_looking = m_input->isMouseCaptured();
+                // Управляется снаружи (например, EditorUI)
+                m_looking = m_externalLook;
             }
 
             // --- Mouse look ---

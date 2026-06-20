@@ -115,6 +115,17 @@ namespace grit::editor {
         c[ImGuiCol_NavWindowingHighlight] = accent;
         c[ImGuiCol_NavWindowingDimBg] = ImVec4(0, 0, 0, 0.40f);
         c[ImGuiCol_ModalWindowDimBg] = ImVec4(0, 0, 0, 0.55f);
+
+
+        ;
+        s.TabRounding = 0.0f;
+        s.TabBorderSize = 0.0f;
+
+        s.Colors[ImGuiCol_Tab] = ImVec4(0.14f, 0.14f, 0.16f, 1.0f);
+        s.Colors[ImGuiCol_TabHovered] = ImVec4(0.22f, 0.22f, 0.26f, 1.0f);
+        s.Colors[ImGuiCol_TabActive] = ImVec4(0.18f, 0.18f, 0.22f, 1.0f);
+        s.Colors[ImGuiCol_TabUnfocused] = ImVec4(0.12f, 0.12f, 0.14f, 1.0f);
+        s.Colors[ImGuiCol_TabUnfocusedActive] = ImVec4(0.16f, 0.16f, 0.20f, 1.0f);
     }
 
 } // namespace grit::editor

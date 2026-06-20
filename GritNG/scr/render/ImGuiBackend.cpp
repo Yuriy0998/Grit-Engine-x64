@@ -22,6 +22,7 @@ namespace grit::render {
 
         IMGUI_CHECKVERSION();
         ImGui::CreateContext();
+        ImGuizmo::SetImGuiContext(ImGui::GetCurrentContext());  // ← ДОБАВЬ
         ImGuiIO& io = ImGui::GetIO();
         io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
         // io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable; // пока НЕ включаем — оно требует доп. backend platform

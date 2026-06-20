@@ -76,11 +76,7 @@ namespace grit::rhi {
         bgfx::setViewRect(0, 0, 0, (u16)m_width, (u16)m_height);
         bgfx::touch(0);
 
-        bgfx::dbgTextClear();
-        bgfx::dbgTextPrintf(1, 1, 0x0f,
-            "GritNG | bgfx %s | %ux%u",
-            bgfx::getRendererName(bgfx::getRendererType()),
-            m_width, m_height);
+       
     }
 
     void Device::endFrame() {

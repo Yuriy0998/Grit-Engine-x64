@@ -36,6 +36,7 @@ namespace grit {
 
             void setCamera(Camera* cam) { m_camera = cam; }
             void setInput(Input* in) { m_input = in; }
+            void setExternalLook(bool v) { m_externalLook = v; }
 
             Config& config() { return m_config; }
             const Config& config() const { return m_config; }
@@ -55,6 +56,7 @@ namespace grit {
         private:
             Camera* m_camera = nullptr;
             Input* m_input = nullptr;
+            bool m_externalLook = false;
 
             Config  m_config;
 

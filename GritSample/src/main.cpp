@@ -155,15 +155,12 @@ int main() {
     bool rotating = true;
 
     engine.setOnUpdate([&](float dt) {
-        if (input.wasPressed(grit::Key::Escape)) {
-            engine.requestQuit();
-            return;
-        }
-        if (input.wasPressed(grit::Key::Space)) {
-            rotating = !rotating;
-        }
+        if (input.wasPressed(grit::Key::Escape)) { engine.requestQuit(); return; }
+        if (input.wasPressed(grit::Key::Space))  rotating = !rotating;
 
-        camCtrl.update(dt);
+        const bool camActive = engine.editorUI().cameraCaptured();
+        camCtrl.setExternalLook(camActive);   // ← говорим контроллеру: «крути»
+        camCtrl.update(dt);                   // ← всегда обновляем, без if
 
         if (rotating) {
             auto& rt = world.registry().get<grit::ecs::Transform>(root);

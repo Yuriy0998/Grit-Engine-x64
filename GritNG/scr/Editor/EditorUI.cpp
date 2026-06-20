@@ -1,6 +1,7 @@
 ﻿#include "EditorUI.h"
 #include <imgui.h>
 #include <ImGuizmo.h>
+#include <imgui_internal.h>
 
 #include "../Engine.h"
 #include "../ecs/World.h"
@@ -105,6 +106,8 @@ namespace grit::editor {
     {
         if (!m_enabled || !m_engine) return;
 
+        ImGuizmo::BeginFrame();
+
         // --- Хоткеи ---
         ImGuiIO& io = ImGui::GetIO();
         if (!io.WantCaptureKeyboard) {
@@ -121,16 +124,19 @@ namespace grit::editor {
                 else if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_D)) {
                     duplicateEntity(m_selected);
                 }
+                else if (ImGui::IsKeyPressed(ImGuiKey_F2)) {
+                    m_renaming = m_selected;
+                }
             }
         }
 
         // ----------------------------------------------------------------
-        // Хост-окно во весь WorkArea (под main menu bar)
-        // Внутри: [Tabs] [Toolbar] [DockSpace]
+        // Хост-окно (только верхняя полоса: menu + tabs + toolbar)
+        // Автовысота, чтобы не перекрывать центральную область
         // ----------------------------------------------------------------
         const ImGuiViewport* vp = ImGui::GetMainViewport();
+
         ImGui::SetNextWindowPos(vp->WorkPos);
-        ImGui::SetNextWindowSize(vp->WorkSize);
         ImGui::SetNextWindowViewport(vp->ID);
 
         ImGuiWindowFlags hostFlags =
@@ -140,13 +146,19 @@ namespace grit::editor {
             | ImGuiWindowFlags_NoMove
             | ImGuiWindowFlags_NoBringToFrontOnFocus
             | ImGuiWindowFlags_NoNavFocus
-            | ImGuiWindowFlags_NoDocking
             | ImGuiWindowFlags_MenuBar
-            | ImGuiWindowFlags_NoBackground;
+            | ImGuiWindowFlags_NoBackground
+            | ImGuiWindowFlags_NoScrollbar
+            | ImGuiWindowFlags_AlwaysAutoResize
+            | ImGuiWindowFlags_NoSavedSettings;
 
         ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
         ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+
+        // Принудительно растянуть по ширине (AlwaysAutoResize применяется только к высоте, если ширина задана)
+        ImGui::SetNextWindowSize(ImVec2(vp->WorkSize.x, 0.0f));
+
         ImGui::Begin("##DockHost", nullptr, hostFlags);
         ImGui::PopStyleVar(3);
 
@@ -156,25 +168,26 @@ namespace grit::editor {
             ImGui::EndMenuBar();
         }
 
-        // 2) Tabs bar (фиксированная полоса)
+        // 2) Tabs bar
         drawTabsBar();
 
-        // 3) Toolbar (фиксированная полоса)
+        // 3) Toolbar
         drawToolbar();
 
-        // 4) Оставшееся пространство — DockSpace
-        const ImGuiID dockId = ImGui::GetID("GritDockSpace");
-        ImGui::DockSpace(dockId, ImVec2(0, 0),
-            ImGuiDockNodeFlags_PassthruCentralNode);
+        // Запомнить фактическую высоту шапки для drawCenterArea()
+        m_headerHeight = ImGui::GetWindowSize().y;
 
         ImGui::End(); // ##DockHost
 
-        // --- Dockable панели ---
-        drawHierarchy();
-        drawInspector();
-        drawConsole();
-        drawCenterArea();   // ← теперь это окно "Viewport" (контент по табу)
-        drawAssets();
+        // --- Центральная область и сайдбар ---
+        drawCenterArea();
+        drawLeftSideBar();
+
+        // --- Плавающие панели ---
+        if (m_showHierarchy) drawHierarchy();
+        if (m_showInspector) drawInspector();
+        if (m_showConsole)   drawConsole();
+        if (m_showAssets)    drawAssets();
 
         if (m_showDemo) ImGui::ShowDemoWindow(&m_showDemo);
 
@@ -189,7 +202,6 @@ namespace grit::editor {
                 ImGuiWindowFlags_NoDecoration
                 | ImGuiWindowFlags_NoMove
                 | ImGuiWindowFlags_NoSavedSettings
-                | ImGuiWindowFlags_NoDocking
                 | ImGuiWindowFlags_NoBringToFrontOnFocus;
 
             ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8, 2));
@@ -216,6 +228,10 @@ namespace grit::editor {
             ImGui::End();
             ImGui::PopStyleVar();
         }
+
+        if (m_cameraCaptured) {
+            ImGui::SetMouseCursor(ImGuiMouseCursor_None);
+        }
     }
 
     // =====================================================================
@@ -224,7 +240,7 @@ namespace grit::editor {
 
     void EditorUI::drawConsole()
     {
-        if (!ImGui::Begin("Console")) { ImGui::End(); return; }
+        if (!ImGui::Begin("Console", &m_showConsole)) { ImGui::End(); return; }
 
         if (ImGui::Button("Clear")) grit::LogSink::get().clear();
         ImGui::SameLine();
@@ -280,18 +296,73 @@ namespace grit::editor {
         auto* tr = reg.try_get<grit::ecs::Transform>(m_selected);
         if (!tr) return;
 
+        // Строим СВОИ матрицы для ImGuizmo (всегда GL-стиль)
+        auto& cam = m_engine->renderer().camera();
+        float view[16];
+        float proj[16];
+        cam.buildView(view);
+        cam.buildProj(proj, true);  // homogeneousDepth = true для ImGuizmo
+
         ImGuizmo::SetOrthographic(false);
         ImGuizmo::SetDrawlist(ImGui::GetWindowDrawList());
         ImGuizmo::SetRect(m_vpScreenPos.x, m_vpScreenPos.y,
             m_vpScreenSize.x, m_vpScreenSize.y);
 
-        const float* view = m_engine->renderer().viewMatrix();
-        const float* proj = m_engine->renderer().projMatrix();
+        // --- ОТЛАДКА: рисуем рамку и проекцию точки объекта ---
+        ImDrawList* dl = ImGui::GetWindowDrawList();
+        dl->AddRect(m_vpScreenPos,
+            ImVec2(m_vpScreenPos.x + m_vpScreenSize.x,
+                m_vpScreenPos.y + m_vpScreenSize.y),
+            IM_COL32(255, 0, 0, 255), 0, 0, 2.0f);
+
+        // Ручная проекция позиции объекта
+        {
+            float vp[16];
+            bx::mtxMul(vp, view, proj);
+            float wp[4] = { tr->position.x, tr->position.y, tr->position.z, 1.0f };
+            float cp[4];
+            cp[0] = wp[0] * vp[0] + wp[1] * vp[4] + wp[2] * vp[8] + wp[3] * vp[12];
+            cp[1] = wp[0] * vp[1] + wp[1] * vp[5] + wp[2] * vp[9] + wp[3] * vp[13];
+            cp[2] = wp[0] * vp[2] + wp[1] * vp[6] + wp[2] * vp[10] + wp[3] * vp[14];
+            cp[3] = wp[0] * vp[3] + wp[1] * vp[7] + wp[2] * vp[11] + wp[3] * vp[15];
+            if (cp[3] > 0.0001f) {
+                float ndcX = cp[0] / cp[3];
+                float ndcY = cp[1] / cp[3];
+                float sx = m_vpScreenPos.x + (ndcX * 0.5f + 0.5f) * m_vpScreenSize.x;
+                float sy = m_vpScreenPos.y + (1.0f - (ndcY * 0.5f + 0.5f)) * m_vpScreenSize.y;
+                dl->AddCircleFilled(ImVec2(sx, sy), 8.0f, IM_COL32(0, 255, 0, 255));
+                dl->AddLine(ImVec2(sx - 20, sy), ImVec2(sx + 20, sy), IM_COL32(0, 255, 0, 255), 2.0f);
+                dl->AddLine(ImVec2(sx, sy - 20), ImVec2(sx, sy + 20), IM_COL32(0, 255, 0, 255), 2.0f);
+            }
+        }
+
+        ImVec2 mouse = ImGui::GetMousePos();
+        char buf[512];
+        std::snprintf(buf, sizeof(buf),
+            "vpPos=(%.0f,%.0f) vpSize=(%.0f,%.0f)\n"
+            "mouse=(%.0f,%.0f)\n"
+            "obj=(%.2f,%.2f,%.2f)\n"
+            "IsUsing=%d IsOver=%d",
+            m_vpScreenPos.x, m_vpScreenPos.y,
+            m_vpScreenSize.x, m_vpScreenSize.y,
+            mouse.x, mouse.y,
+            tr->position.x, tr->position.y, tr->position.z,
+            (int)ImGuizmo::IsUsing(), (int)ImGuizmo::IsOver());
+        dl->AddText(ImVec2(m_vpScreenPos.x + 10, m_vpScreenPos.y + 10),
+            IM_COL32(255, 255, 0, 255), buf);
+        // --- /ОТЛАДКА ---
+
+        char buf2[256];
+        std::snprintf(buf2, sizeof(buf2),
+            "WantCapMouse=%d HoveredWnd=%s",
+            (int)ImGui::GetIO().WantCaptureMouse,
+            ImGui::GetIO().WantCaptureMouse ?
+            (ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow) ? "yes" : "no") : "n/a");
 
         float matrix[16];
-        float t[3] = { tr->position.x,      tr->position.y,      tr->position.z };
+        float t[3] = { tr->position.x, tr->position.y, tr->position.z };
         float r[3] = { tr->rotationEuler.x, tr->rotationEuler.y, tr->rotationEuler.z };
-        float s[3] = { tr->scale.x,         tr->scale.y,         tr->scale.z };
+        float s[3] = { tr->scale.x, tr->scale.y, tr->scale.z };
         ImGuizmo::RecomposeMatrixFromComponents(t, r, s, matrix);
 
         ImGuizmo::OPERATION op;
@@ -314,12 +385,57 @@ namespace grit::editor {
     }
 
     // =====================================================================
+    // Left side bar
+    // =====================================================================
+
+    void EditorUI::drawLeftSideBar()
+    {
+        const float barW = 44.0f;
+
+        const ImGuiViewport* vp = ImGui::GetMainViewport();
+
+        const float topOffset = 24.0f + 44.0f + 38.0f;
+        const float bottomOffset = ImGui::GetFrameHeight();
+
+        ImGui::SetNextWindowPos(ImVec2(vp->WorkPos.x,
+            vp->WorkPos.y + topOffset));
+        ImGui::SetNextWindowSize(ImVec2(barW,
+            vp->WorkSize.y - topOffset - bottomOffset));
+
+        // ВАЖНО: НЕТ NoBringToFrontOnFocus — иначе кнопки не ловят клики
+        ImGuiWindowFlags fl =
+            ImGuiWindowFlags_NoDecoration
+            | ImGuiWindowFlags_NoMove
+            | ImGuiWindowFlags_NoSavedSettings;
+
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(6, 6));
+        ImGui::PushStyleColor(ImGuiCol_WindowBg, IM_COL32(28, 28, 32, 255));
+        ImGui::Begin("##LeftBar", nullptr, fl);
+
+        auto sideBtn = [&](const char* label, bool& toggle) {
+            ImVec4 col = toggle ? ImVec4(0.30f, 0.55f, 0.85f, 1.f)
+                : ImVec4(0.20f, 0.20f, 0.24f, 1.f);
+            ImGui::PushStyleColor(ImGuiCol_Button, col);
+            if (ImGui::Button(label, ImVec2(32, 32))) toggle = !toggle;
+            ImGui::PopStyleColor();
+            };
+
+        sideBtn("H", m_showHierarchy);
+        sideBtn("I", m_showInspector);
+        sideBtn("C", m_showConsole);
+        sideBtn("A", m_showAssets);
+
+        ImGui::End();
+        ImGui::PopStyleColor();
+        ImGui::PopStyleVar();
+    }
+    // =====================================================================
     // Assets
     // =====================================================================
 
     void EditorUI::drawAssets()
     {
-        if (!ImGui::Begin("Assets")) { ImGui::End(); return; }
+        if (!ImGui::Begin("Assets", &m_showAssets)) { ImGui::End(); return; }
 
         namespace fs = std::filesystem;
 
@@ -344,17 +460,26 @@ namespace grit::editor {
         {
             const auto& path = entry.path();
             const std::string name = path.filename().string();
+            const std::string full = path.string();
 
             if (entry.is_directory()) {
                 if (ImGui::Selectable(("[D] " + name).c_str(), false,
                     ImGuiSelectableFlags_AllowDoubleClick))
                 {
                     if (ImGui::IsMouseDoubleClicked(0))
-                        m_assetsCurrent = path.string();
+                        m_assetsCurrent = full;
                 }
             }
             else {
                 ImGui::Selectable(("    " + name).c_str(), false);
+
+                if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_SourceAllowNullID))
+                {
+                    ImGui::SetDragDropPayload("GRIT_ASSET_PATH",
+                        full.c_str(), full.size() + 1);
+                    ImGui::Text("Drag: %s", name.c_str());
+                    ImGui::EndDragDropSource();
+                }
             }
         }
 
@@ -362,84 +487,56 @@ namespace grit::editor {
     }
 
     // =====================================================================
-    // Toolbar
+    // Tabs bar
     // =====================================================================
-
 
     void EditorUI::drawTabsBar()
     {
-        const float tileW = 96.0f;  // ширина вкладки 
-        const float tileH = 34.0f;  // ввыстоа вкладки
-        const float barH = 4.0f;   // высота цветной полоски внизу плитки
+        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(16, 8));
+        ImGui::PushStyleVar(ImGuiStyleVar_ItemInnerSpacing, ImVec2(0, 0));
 
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8, 6));
-        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(6, 0));
+        {
+            ImDrawList* dl = ImGui::GetWindowDrawList();
+            const ImVec2 p0 = ImGui::GetCursorScreenPos();
+            const float  w = ImGui::GetContentRegionAvail().x;
+            const float  h = ImGui::GetFrameHeight() + 8.0f;
+            dl->AddRectFilled(p0, ImVec2(p0.x + w, p0.y + h),
+                IM_COL32(28, 28, 32, 255));
+        }
 
-        ImGui::BeginChild("##TabsBar",
-            ImVec2(0, tileH + 12.0f), false,
-            ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+        ImGuiTabBarFlags flags =
+            ImGuiTabBarFlags_Reorderable
+            | ImGuiTabBarFlags_AutoSelectNewTabs
+            | ImGuiTabBarFlags_NoCloseWithMiddleMouseButton
+            | ImGuiTabBarFlags_FittingPolicyScroll;
 
-        auto drawTile = [&](const char* label, CenterTab tab, ImU32 stripeColor)
-            {
-                const bool active = (m_centerTab == tab);
-
-                ImGui::PushID(label);
-
-                const ImVec2 cursor = ImGui::GetCursorScreenPos();
-                ImDrawList* dl = ImGui::GetWindowDrawList();
-
-                // Невидимая кнопка, занимающая всю плитку
-                if (ImGui::InvisibleButton("##tile", ImVec2(tileW, tileH)))
-                    m_centerTab = tab;
-
-                const bool hovered = ImGui::IsItemHovered();
-
-                // Фон плитки
-                ImU32 bg;
-                if (active)        bg = ImGui::GetColorU32(ImGuiCol_HeaderActive);
-                else if (hovered)  bg = ImGui::GetColorU32(ImGuiCol_HeaderHovered);
-                else               bg = ImGui::GetColorU32(ImGuiCol_Button);
-
-                const ImVec2 p0 = cursor;
-                const ImVec2 p1 = ImVec2(cursor.x + tileW, cursor.y + tileH);
-
-                dl->AddRectFilled(p0, p1, bg, 4.0f);
-
-                // Текст по центру
-                const ImVec2 ts = ImGui::CalcTextSize(label);
-                const ImVec2 tp = ImVec2(
-                    cursor.x + (tileW - ts.x) * 0.5f,
-                    cursor.y + (tileH - barH - ts.y) * 0.5f);
-                dl->AddText(tp, ImGui::GetColorU32(ImGuiCol_Text), label);
-
-                // Цветная полоса снизу
-                dl->AddRectFilled(
-                    ImVec2(p0.x, p1.y - barH),
-                    p1,
-                    stripeColor,
-                    0.0f);
-
-                // Подсветка активной плитки рамкой
-                if (active) {
-                    dl->AddRect(p0, p1,
-                        ImGui::GetColorU32(ImGuiCol_Text),
-                        4.0f, 0, 1.5f);
-                }
-
-                ImGui::PopID();
-                ImGui::SameLine();
+        if (ImGui::BeginTabBar("##MainTabs", flags))
+        {
+            struct TabDef {
+                const char* label;
+                CenterTab   id;
+            };
+            const TabDef defs[] = {
+                { "Map Editor",        CenterTab::MapEditor },
+                { "Navigation Editor", CenterTab::Navigation },
+                { "Game",              CenterTab::Game },
+                { "Lua Script",        CenterTab::LuaScript },
             };
 
-        drawTile("Map Editor", CenterTab::MapEditor, IM_COL32(220, 60, 60, 255)); // красный
-        drawTile("Game", CenterTab::Game, IM_COL32(70, 200, 80, 255)); // зелёный
-        drawTile("Lua Script", CenterTab::LuaScript, IM_COL32(70, 130, 230, 255)); // синий
+            for (const auto& d : defs) {
+                if (ImGui::BeginTabItem(d.label, nullptr, ImGuiTabItemFlags_NoTooltip)) {
+                    m_centerTab = d.id;
+                    ImGui::EndTabItem();
+                }
+            }
+            ImGui::EndTabBar();
+        }
 
-        ImGui::EndChild();
         ImGui::PopStyleVar(2);
     }
 
-        // =====================================================================
-    // Toolbar (продолжение)
+    // =====================================================================
+    // Toolbar
     // =====================================================================
 
     void EditorUI::drawToolbar()
@@ -449,6 +546,12 @@ namespace grit::editor {
 
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8, 5));
         ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(6, 0));
+
+        ImGui::GetWindowDrawList()->AddLine(
+            ImGui::GetCursorScreenPos(),
+            ImVec2(ImGui::GetCursorScreenPos().x + ImGui::GetContentRegionAvail().x,
+                ImGui::GetCursorScreenPos().y),
+            IM_COL32(20, 20, 22, 255), 1.0f);
         ImGui::BeginChild("##Toolbar", ImVec2(0, h), false,
             ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
 
@@ -590,22 +693,34 @@ namespace grit::editor {
     }
 
     // =====================================================================
-    // Viewport
+    // Center area (Viewport)
     // =====================================================================
 
     void EditorUI::drawCenterArea()
     {
+        const ImGuiViewport* vp = ImGui::GetMainViewport();
+        const float topOffset = 24.0f + 44.0f + 38.0f;
+        const float bottomOffset = ImGui::GetFrameHeight();
+        const float leftOffset = 44.0f;
+
+        ImGui::SetNextWindowPos(ImVec2(vp->WorkPos.x + leftOffset,
+            vp->WorkPos.y + topOffset));
+        ImGui::SetNextWindowSize(ImVec2(vp->WorkSize.x - leftOffset,
+            vp->WorkSize.y - topOffset - bottomOffset));
+
+        ImGuiWindowFlags fl =
+            ImGuiWindowFlags_NoDecoration
+            | ImGuiWindowFlags_NoMove
+            | ImGuiWindowFlags_NoSavedSettings
+            | ImGuiWindowFlags_NoBringToFrontOnFocus;
+
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+        ImGui::Begin("##Viewport", nullptr, fl);
 
-        // Окно называется "Viewport" — на нём пользователь может закрыть/задокать
-        // как любое другое dock-окно, но Tabs/Toolbar при этом останутся сверху.
-        if (!ImGui::Begin("Viewport")) {
-            ImGui::End();
-            ImGui::PopStyleVar();
-            return;
-        }
+      
 
-        // Содержимое зависит от текущей вкладки сверху
+
+
         switch (m_centerTab)
         {
         case CenterTab::MapEditor:
@@ -625,19 +740,57 @@ namespace grit::editor {
             m_vpHovered = false;
 
             auto tex = m_engine->renderer().viewportColorTexture();
-            if (bgfx::isValid(tex)) {
+            if (bgfx::isValid(tex))
+            {
                 const bool obl = bgfx::getCaps()->originBottomLeft;
                 ImVec2 uv0 = obl ? ImVec2(0, 1) : ImVec2(0, 0);
                 ImVec2 uv1 = obl ? ImVec2(1, 0) : ImVec2(1, 1);
+
+                // Картинка с RT
                 ImGui::Image((ImTextureID)(uintptr_t)tex.idx, avail, uv0, uv1);
+
+               
+
                 m_vpHovered = ImGui::IsItemHovered();
+
+                // Drag&Drop приём ассетов
+                if (ImGui::BeginDragDropTarget())
+                {
+                    if (const ImGuiPayload* p = ImGui::AcceptDragDropPayload("GRIT_ASSET_PATH"))
+                    {
+                        std::string path((const char*)p->Data);
+                        handleAssetDrop(path);
+                    }
+                    ImGui::EndDragDropTarget();
+                }
+
+                // Захват камеры: ПКМ
+                const bool rmb = ImGui::IsMouseDown(ImGuiMouseButton_Right);
+
+                if (!m_cameraCaptured
+                    && m_vpHovered
+                    && ImGui::IsMouseClicked(ImGuiMouseButton_Right))
+                {
+                    m_cameraCaptured = true;
+                }
+                if (m_cameraCaptured && !rmb) {
+                    m_cameraCaptured = false;
+                }
             }
+
+            // Гизмо рисуем ПОСЛЕ всего, поверх Image
             drawGizmo();
             break;
         }
+
+        case CenterTab::Navigation:
+            ImGui::TextDisabled("Navigation Editor - coming soon");
+            break;
+
         case CenterTab::Game:
             ImGui::TextDisabled("Game view - coming soon");
             break;
+
         case CenterTab::LuaScript:
             ImGui::TextDisabled("Lua Script editor - coming soon");
             break;
@@ -645,6 +798,47 @@ namespace grit::editor {
 
         ImGui::End();
         ImGui::PopStyleVar();
+    }
+    // =====================================================================
+    // Asset drop
+    // =====================================================================
+
+    void EditorUI::handleAssetDrop(const std::string& path)
+    {
+        namespace fs = std::filesystem;
+        fs::path p(path);
+        const std::string ext = p.extension().string();
+        const std::string name = p.stem().string();
+
+        if (ext == ".grmesh")
+        {
+            auto& assets = m_engine->assets();
+            auto  prog = m_engine->renderer().defaultProgram();
+
+            auto model = assets.loadModel(path, prog);
+            if (!model.mesh) {
+                GRIT_WARN("Drop: failed to load mesh '%s'", path.c_str());
+                return;
+            }
+
+            auto& reg = m_engine->world().registry();
+            auto e = reg.create();
+            reg.emplace<grit::ecs::Name>(e, grit::ecs::Name{ name });
+            reg.emplace<grit::ecs::Transform>(e);
+
+            grit::ecs::MeshRenderer mr;
+            mr.mesh = model.mesh;
+            mr.meshPath = path;
+            mr.visible = true;
+            for (auto& m : model.materials) mr.materials.push_back(m);
+            reg.emplace<grit::ecs::MeshRenderer>(e, std::move(mr));
+
+            m_selected = e;
+            GRIT_INFO("Drop: spawned entity from '%s'", path.c_str());
+            return;
+        }
+
+        GRIT_WARN("Drop: unsupported asset type '%s'", ext.c_str());
     }
 
     // =====================================================================
@@ -699,6 +893,11 @@ namespace grit::editor {
 
         if (ImGui::BeginMenu("View"))
         {
+            ImGui::MenuItem("Hierarchy", nullptr, &m_showHierarchy);
+            ImGui::MenuItem("Inspector", nullptr, &m_showInspector);
+            ImGui::MenuItem("Console", nullptr, &m_showConsole);
+            ImGui::MenuItem("Assets", nullptr, &m_showAssets);
+            ImGui::Separator();
             ImGui::MenuItem("ImGui Demo", nullptr, &m_showDemo);
             ImGui::EndMenu();
         }
@@ -719,11 +918,10 @@ namespace grit::editor {
 
     void EditorUI::drawHierarchy()
     {
-        if (!ImGui::Begin("Hierarchy")) { ImGui::End(); return; }
+        if (!ImGui::Begin("Hierarchy", &m_showHierarchy)) { ImGui::End(); return; }
 
         auto& reg = m_engine->world().registry();
 
-        // Context menu на пустой области
         if (ImGui::BeginPopupContextWindow("HierarchyEmptyPopup",
             ImGuiPopupFlags_NoOpenOverItems | ImGuiPopupFlags_MouseButtonRight))
         {
@@ -739,34 +937,75 @@ namespace grit::editor {
             ImGui::EndPopup();
         }
 
-        // Список entity
+        entt::entity toDelete = entt::null;
+
         auto view = reg.view<grit::ecs::Name>();
         for (auto e : view)
         {
-            const auto& name = view.get<grit::ecs::Name>(e);
+            auto& name = view.get<grit::ecs::Name>(e);
             ImGui::PushID((int)entt::to_integral(e));
 
-            bool selected = (e == m_selected);
-            if (ImGui::Selectable(name.value.c_str(), selected))
-                m_selected = e;
+            const bool selected = (e == m_selected);
 
-            // Context menu на entity
+            if (m_renaming == e)
+            {
+                char buf[128];
+                std::snprintf(buf, sizeof(buf), "%s", name.value.c_str());
+
+                ImGui::SetKeyboardFocusHere();
+                ImGuiInputTextFlags fl =
+                    ImGuiInputTextFlags_EnterReturnsTrue
+                    | ImGuiInputTextFlags_AutoSelectAll;
+
+                if (ImGui::InputText("##rename", buf, sizeof(buf), fl)) {
+                    name.value = buf;
+                    m_renaming = entt::null;
+                }
+                if (!ImGui::IsItemActive() && !ImGui::IsItemFocused()
+                    && ImGui::IsMouseClicked(0))
+                {
+                    name.value = buf;
+                    m_renaming = entt::null;
+                }
+                if (ImGui::IsKeyPressed(ImGuiKey_Escape)) {
+                    m_renaming = entt::null;
+                }
+            }
+            else
+            {
+                if (ImGui::Selectable(name.value.c_str(), selected,
+                    ImGuiSelectableFlags_AllowDoubleClick))
+                {
+                    m_selected = e;
+                    if (ImGui::IsMouseDoubleClicked(0)) {
+                        m_renaming = e;
+                    }
+                }
+            }
+
             if (ImGui::BeginPopupContextItem("EntityPopup"))
             {
                 m_selected = e;
-                if (ImGui::MenuItem("Duplicate", "Ctrl+D")) duplicateEntity(e);
+                if (ImGui::MenuItem("Rename", "F2")) {
+                    m_renaming = e;
+                }
+                if (ImGui::MenuItem("Duplicate", "Ctrl+D")) {
+                    duplicateEntity(e);
+                }
                 ImGui::Separator();
                 if (ImGui::MenuItem("Delete", "Del")) {
-                    reg.destroy(e);
-                    m_selected = entt::null;
-                    ImGui::EndPopup();
-                    ImGui::PopID();
-                    break; // итератор инвалидируется
+                    toDelete = e;
                 }
                 ImGui::EndPopup();
             }
 
             ImGui::PopID();
+        }
+
+        if (toDelete != entt::null) {
+            if (m_selected == toDelete) m_selected = entt::null;
+            if (m_renaming == toDelete) m_renaming = entt::null;
+            reg.destroy(toDelete);
         }
 
         ImGui::End();
@@ -816,7 +1055,8 @@ namespace grit::editor {
     void EditorUI::drawInspector()
     {
         ImGui::SetNextWindowSize(ImVec2(320, 480), ImGuiCond_FirstUseEver);
-        if (!ImGui::Begin("Inspector")) { ImGui::End(); return; }
+
+        if (!ImGui::Begin("Inspector", &m_showInspector)) { ImGui::End(); return; }
 
         if (m_selected == entt::null) {
             ImGui::TextDisabled("No entity selected");
@@ -831,7 +1071,6 @@ namespace grit::editor {
             return;
         }
 
-        // Name
         if (auto* n = reg.try_get<ecs::Name>(m_selected)) {
             char buf[128];
             std::snprintf(buf, sizeof(buf), "%s", n->value.c_str());

@@ -43,6 +43,9 @@ namespace grit {
         bool quitRequested() const { return m_quitRequested; }
         bool imguiWantsMouse()    const { return m_imgui.wantCaptureMouse(); }
         bool imguiWantsKeyboard() const { return m_imgui.wantCaptureKeyboard(); }
+        
+        editor::EditorUI& editorUI() { return m_editor; }
+        const editor::EditorUI& editorUI() const { return m_editor; }
 
 
         editor::EditorUI& editor() { return m_editor; }
@@ -73,7 +76,7 @@ namespace grit {
         Time m_time;
         bool m_showStats = false;  // F1 Ч полна€ статистика bgfx
         bool m_wireframe = false;  // F2 Ч wireframe
-
+        
         render::ImGuiBackend m_imgui;
         editor::EditorUI     m_editor;
     };

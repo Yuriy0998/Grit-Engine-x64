@@ -30,6 +30,9 @@ namespace grit::render {
 
         const float* viewMatrix() const { return m_viewMtx; }
         const float* projMatrix() const { return m_projMtx; }
+
+        
+        const Camera& camera() const { return m_camera; }
       
         bgfx::TextureHandle viewportColorTexture() const { return m_vpColor; }
         u32 viewportWidth()  const { return m_vpWidth; }

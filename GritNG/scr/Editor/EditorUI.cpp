@@ -15,6 +15,8 @@
 #include "../scene/SceneSerializer.h"
 #include "../core/Log.h"
 #include "../core/LogSink.h"
+#include "../render/Environment.h"
+#include "../render/TimeOfDay.h"
 
 #include <functional>
 #include <cstdio>
@@ -22,12 +24,16 @@
 #include <string>
 #include <filesystem>
 #include <bx/math.h>
+#include "Picking.h"
+#include <cfloat>
 
 namespace grit::editor {
 
     // =====================================================================
     // Entity creation
     // =====================================================================
+
+    using grit::render::Environment;
 
     entt::entity EditorUI::createEmpty(const char* name)
     {
@@ -74,6 +80,28 @@ namespace grit::editor {
 
         m_selected = e;
         return e;
+    }
+
+    void EditorUI::createPointLight()
+    {
+        auto& reg = m_engine->world().registry();
+        auto e = reg.create();
+        reg.emplace<grit::ecs::Name>(e, "Point Light");
+        auto& tr = reg.emplace<grit::ecs::Transform>(e);
+        tr.position = { 0.0f, 2.0f, 0.0f };
+        reg.emplace<grit::ecs::LightPoint>(e);
+        m_selected = e;
+    }
+
+    void EditorUI::createSpotLight()
+    {
+        auto& reg = m_engine->world().registry();
+        auto e = reg.create();
+        reg.emplace<grit::ecs::Name>(e, "Spot Light");
+        auto& tr = reg.emplace<grit::ecs::Transform>(e);
+        tr.position = { 0.0f, 3.0f, 0.0f };
+        reg.emplace<grit::ecs::LightSpot>(e);
+        m_selected = e;
     }
 
     void EditorUI::duplicateEntity(entt::entity src)
@@ -179,6 +207,8 @@ namespace grit::editor {
 
         ImGui::End(); // ##DockHost
 
+        if (m_showEnvironment) drawEnvironment();
+
         // --- Центральная область и сайдбар ---
         drawCenterArea();
         drawLeftSideBar();
@@ -229,9 +259,13 @@ namespace grit::editor {
             ImGui::PopStyleVar();
         }
 
+        if (m_showTimeOfDay)  drawTimeOfDay();
+
         if (m_cameraCaptured) {
             ImGui::SetMouseCursor(ImGuiMouseCursor_None);
         }
+
+        m_engine->renderer().setSelectedEntity(m_selected);
     }
 
     // =====================================================================
@@ -291,78 +325,29 @@ namespace grit::editor {
     void EditorUI::drawGizmo()
     {
         if (m_selected == entt::null) return;
+        if (m_centerTab != CenterTab::MapEditor) return;
 
         auto& reg = m_engine->world().registry();
         auto* tr = reg.try_get<grit::ecs::Transform>(m_selected);
         if (!tr) return;
 
-        // Строим СВОИ матрицы для ImGuizmo (всегда GL-стиль)
+        // Матрицы view/proj (GL-стиль для ImGuizmo)
         auto& cam = m_engine->renderer().camera();
         float view[16];
         float proj[16];
         cam.buildView(view);
-        cam.buildProj(proj, true);  // homogeneousDepth = true для ImGuizmo
+        cam.buildProj(proj, true);   // homogeneousDepth = true
 
         ImGuizmo::SetOrthographic(false);
         ImGuizmo::SetDrawlist(ImGui::GetWindowDrawList());
         ImGuizmo::SetRect(m_vpScreenPos.x, m_vpScreenPos.y,
             m_vpScreenSize.x, m_vpScreenSize.y);
 
-        // --- ОТЛАДКА: рисуем рамку и проекцию точки объекта ---
-        ImDrawList* dl = ImGui::GetWindowDrawList();
-        dl->AddRect(m_vpScreenPos,
-            ImVec2(m_vpScreenPos.x + m_vpScreenSize.x,
-                m_vpScreenPos.y + m_vpScreenSize.y),
-            IM_COL32(255, 0, 0, 255), 0, 0, 2.0f);
-
-        // Ручная проекция позиции объекта
-        {
-            float vp[16];
-            bx::mtxMul(vp, view, proj);
-            float wp[4] = { tr->position.x, tr->position.y, tr->position.z, 1.0f };
-            float cp[4];
-            cp[0] = wp[0] * vp[0] + wp[1] * vp[4] + wp[2] * vp[8] + wp[3] * vp[12];
-            cp[1] = wp[0] * vp[1] + wp[1] * vp[5] + wp[2] * vp[9] + wp[3] * vp[13];
-            cp[2] = wp[0] * vp[2] + wp[1] * vp[6] + wp[2] * vp[10] + wp[3] * vp[14];
-            cp[3] = wp[0] * vp[3] + wp[1] * vp[7] + wp[2] * vp[11] + wp[3] * vp[15];
-            if (cp[3] > 0.0001f) {
-                float ndcX = cp[0] / cp[3];
-                float ndcY = cp[1] / cp[3];
-                float sx = m_vpScreenPos.x + (ndcX * 0.5f + 0.5f) * m_vpScreenSize.x;
-                float sy = m_vpScreenPos.y + (1.0f - (ndcY * 0.5f + 0.5f)) * m_vpScreenSize.y;
-                dl->AddCircleFilled(ImVec2(sx, sy), 8.0f, IM_COL32(0, 255, 0, 255));
-                dl->AddLine(ImVec2(sx - 20, sy), ImVec2(sx + 20, sy), IM_COL32(0, 255, 0, 255), 2.0f);
-                dl->AddLine(ImVec2(sx, sy - 20), ImVec2(sx, sy + 20), IM_COL32(0, 255, 0, 255), 2.0f);
-            }
-        }
-
-        ImVec2 mouse = ImGui::GetMousePos();
-        char buf[512];
-        std::snprintf(buf, sizeof(buf),
-            "vpPos=(%.0f,%.0f) vpSize=(%.0f,%.0f)\n"
-            "mouse=(%.0f,%.0f)\n"
-            "obj=(%.2f,%.2f,%.2f)\n"
-            "IsUsing=%d IsOver=%d",
-            m_vpScreenPos.x, m_vpScreenPos.y,
-            m_vpScreenSize.x, m_vpScreenSize.y,
-            mouse.x, mouse.y,
-            tr->position.x, tr->position.y, tr->position.z,
-            (int)ImGuizmo::IsUsing(), (int)ImGuizmo::IsOver());
-        dl->AddText(ImVec2(m_vpScreenPos.x + 10, m_vpScreenPos.y + 10),
-            IM_COL32(255, 255, 0, 255), buf);
-        // --- /ОТЛАДКА ---
-
-        char buf2[256];
-        std::snprintf(buf2, sizeof(buf2),
-            "WantCapMouse=%d HoveredWnd=%s",
-            (int)ImGui::GetIO().WantCaptureMouse,
-            ImGui::GetIO().WantCaptureMouse ?
-            (ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow) ? "yes" : "no") : "n/a");
-
+        // Собираем матрицу из компонентов
         float matrix[16];
-        float t[3] = { tr->position.x, tr->position.y, tr->position.z };
+        float t[3] = { tr->position.x,      tr->position.y,      tr->position.z };
         float r[3] = { tr->rotationEuler.x, tr->rotationEuler.y, tr->rotationEuler.z };
-        float s[3] = { tr->scale.x, tr->scale.y, tr->scale.z };
+        float s[3] = { tr->scale.x,         tr->scale.y,         tr->scale.z };
         ImGuizmo::RecomposeMatrixFromComponents(t, r, s, matrix);
 
         ImGuizmo::OPERATION op;
@@ -374,7 +359,19 @@ namespace grit::editor {
         }
         ImGuizmo::MODE mode = m_gizmoUseLocal ? ImGuizmo::LOCAL : ImGuizmo::WORLD;
 
-        if (ImGuizmo::Manipulate(view, proj, op, mode, matrix))
+        // Snap (опционально, держим Ctrl для активации)
+        const bool useSnap = ImGui::GetIO().KeyCtrl;
+        float snapT[3] = { 0.5f, 0.5f, 0.5f };
+        float snapR[3] = { 15.0f, 15.0f, 15.0f };
+        float snapS[3] = { 0.1f, 0.1f, 0.1f };
+        const float* snap = nullptr;
+        if (useSnap) {
+            if (op == ImGuizmo::TRANSLATE) snap = snapT;
+            else if (op == ImGuizmo::ROTATE)    snap = snapR;
+            else                                snap = snapS;
+        }
+
+        if (ImGuizmo::Manipulate(view, proj, op, mode, matrix, nullptr, snap))
         {
             float nt[3], nr[3], ns[3];
             ImGuizmo::DecomposeMatrixToComponents(matrix, nt, nr, ns);
@@ -383,6 +380,97 @@ namespace grit::editor {
             else if (op == ImGuizmo::SCALE)     tr->scale = { ns[0], ns[1], ns[2] };
         }
     }
+
+
+    void EditorUI::pickEntity(float mouseInVpX, float mouseInVpY)
+    {
+        auto& reg = m_engine->world().registry();
+        auto& cam = m_engine->renderer().camera();
+
+        float view[16], proj[16];
+        cam.buildView(view);
+        cam.buildProj(proj, true);
+
+        Ray ray = screenToRay(mouseInVpX, mouseInVpY,
+            m_vpScreenSize.x, m_vpScreenSize.y,
+            view, proj);
+
+        entt::entity best = entt::null;
+        float bestT = FLT_MAX;
+
+        // --- Меши: ray vs AABB ---
+        auto vw = reg.view<grit::ecs::Transform, grit::ecs::MeshRenderer>();
+        for (auto e : vw) {
+            const auto& tr = vw.get<grit::ecs::Transform>(e);
+            const auto& mr = vw.get<grit::ecs::MeshRenderer>(e);
+            if (!mr.visible || !mr.mesh) continue;
+
+            const auto& lmin = mr.mesh->aabbMin();
+            const auto& lmax = mr.mesh->aabbMax();
+
+            float mtx[16];
+            bx::mtxSRT(mtx,
+                tr.scale.x, tr.scale.y, tr.scale.z,
+                tr.rotationEuler.x, tr.rotationEuler.y, tr.rotationEuler.z,
+                tr.position.x, tr.position.y, tr.position.z);
+
+            vec3 wmn, wmx;
+            transformAABB(mtx, lmin, lmax, wmn, wmx);
+
+            float t;
+            if (rayIntersectAABB(ray, wmn, wmx, t)) {
+                if (t < bestT) {
+                    bestT = t;
+                    best = e;
+                }
+            }
+        }
+
+        // --- Lights: ray vs sphere (по иконкам) ---
+        const float kLightPickRadius = 0.35f;
+        const float kLightPickRadiusSq = kLightPickRadius * kLightPickRadius;
+
+        auto tryPickLight = [&](entt::entity ent, const vec3& pos) {
+            vec3 op{ pos.x - ray.origin.x, pos.y - ray.origin.y, pos.z - ray.origin.z };
+            float t = op.x * ray.dir.x + op.y * ray.dir.y + op.z * ray.dir.z;
+            if (t < 0.f) return;
+            vec3 closest{
+                ray.origin.x + ray.dir.x * t,
+                ray.origin.y + ray.dir.y * t,
+                ray.origin.z + ray.dir.z * t
+            };
+            vec3 d{ closest.x - pos.x, closest.y - pos.y, closest.z - pos.z };
+            float dsq = d.x * d.x + d.y * d.y + d.z * d.z;
+            if (dsq <= kLightPickRadiusSq && t < bestT) {
+                bestT = t;
+                best = ent;
+            }
+            };
+
+        // Directional
+        for (auto ent : reg.view<grit::ecs::LightDirectional>()) {
+            vec3 p{ 0, 0, 0 };
+            if (auto* tr = reg.try_get<grit::ecs::Transform>(ent)) {
+                p = tr->position;
+            }
+            tryPickLight(ent, p);
+        }
+
+        // Point
+        for (auto ent : reg.view<grit::ecs::Transform, grit::ecs::LightPoint>()) {
+            auto& tr = reg.get<grit::ecs::Transform>(ent);
+            tryPickLight(ent, tr.position);
+        }
+
+        // Spot
+        for (auto ent : reg.view<grit::ecs::Transform, grit::ecs::LightSpot>()) {
+            auto& tr = reg.get<grit::ecs::Transform>(ent);
+            tryPickLight(ent, tr.position);
+        }
+
+        m_selected = best;
+    }
+
 
     // =====================================================================
     // Left side bar
@@ -412,18 +500,24 @@ namespace grit::editor {
         ImGui::PushStyleColor(ImGuiCol_WindowBg, IM_COL32(28, 28, 32, 255));
         ImGui::Begin("##LeftBar", nullptr, fl);
 
-        auto sideBtn = [&](const char* label, bool& toggle) {
+        auto sideBtn = [&](const char* label, const char* tip, bool& toggle) {
             ImVec4 col = toggle ? ImVec4(0.30f, 0.55f, 0.85f, 1.f)
                 : ImVec4(0.20f, 0.20f, 0.24f, 1.f);
             ImGui::PushStyleColor(ImGuiCol_Button, col);
             if (ImGui::Button(label, ImVec2(32, 32))) toggle = !toggle;
             ImGui::PopStyleColor();
+            if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", tip);
             };
 
-        sideBtn("H", m_showHierarchy);
-        sideBtn("I", m_showInspector);
-        sideBtn("C", m_showConsole);
-        sideBtn("A", m_showAssets);
+        sideBtn("H", "Hierarchy", m_showHierarchy);
+        sideBtn("I", "Inspector", m_showInspector);
+        sideBtn("C", "Console", m_showConsole);
+        sideBtn("A", "Assets", m_showAssets);
+
+        ImGui::Dummy(ImVec2(0, 8));
+
+        sideBtn("E", "Environment", m_showEnvironment);
+        sideBtn("T", "Time of Day", m_showTimeOfDay);
 
         ImGui::End();
         ImGui::PopStyleColor();
@@ -753,6 +847,19 @@ namespace grit::editor {
 
                 m_vpHovered = ImGui::IsItemHovered();
 
+                // Picking по ЛКМ
+                if (m_vpHovered
+                    && !m_cameraCaptured
+                    && !ImGuizmo::IsOver()
+                    && !ImGuizmo::IsUsing()
+                    && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+                {
+                    ImVec2 mouse = ImGui::GetMousePos();
+                    float mx = mouse.x - m_vpScreenPos.x;
+                    float my = mouse.y - m_vpScreenPos.y;
+                    pickEntity(mx, my);
+                }
+
                 // Drag&Drop приём ассетов
                 if (ImGui::BeginDragDropTarget())
                 {
@@ -887,7 +994,14 @@ namespace grit::editor {
                 if (ImGui::MenuItem("Plane"))  createPrimitive("Plane");
                 ImGui::EndMenu();
             }
-            if (ImGui::MenuItem("Directional Light")) createLight();
+            if (ImGui::BeginMenu("Light")) {
+                if (ImGui::MenuItem("Directional Light")) createLight();
+                if (ImGui::MenuItem("Point Light"))       createPointLight();
+                if (ImGui::MenuItem("Spot Light"))        createSpotLight();
+                ImGui::EndMenu();
+            }
+
+
             ImGui::EndMenu();
         }
 
@@ -899,6 +1013,7 @@ namespace grit::editor {
             ImGui::MenuItem("Assets", nullptr, &m_showAssets);
             ImGui::Separator();
             ImGui::MenuItem("ImGui Demo", nullptr, &m_showDemo);
+            ImGui::MenuItem("Time of Day", nullptr, &m_showTimeOfDay);
             ImGui::EndMenu();
         }
 
@@ -911,6 +1026,9 @@ namespace grit::editor {
         ImGui::SameLine(ImGui::GetWindowWidth() - w);
         ImGui::TextUnformatted(buf);
     }
+
+
+
 
     // =====================================================================
     // Hierarchy
@@ -933,7 +1051,12 @@ namespace grit::editor {
                 if (ImGui::MenuItem("Plane"))  createPrimitive("Plane");
                 ImGui::EndMenu();
             }
-            if (ImGui::MenuItem("Directional Light")) createLight();
+            if (ImGui::BeginMenu("Light")) {
+                if (ImGui::MenuItem("Directional Light")) createLight();
+                if (ImGui::MenuItem("Point Light"))       createPointLight();
+                if (ImGui::MenuItem("Spot Light"))        createSpotLight();
+                ImGui::EndMenu();
+            }
             ImGui::EndPopup();
         }
 
@@ -1054,66 +1177,247 @@ namespace grit::editor {
 
     void EditorUI::drawInspector()
     {
-        ImGui::SetNextWindowSize(ImVec2(320, 480), ImGuiCond_FirstUseEver);
-
-        if (!ImGui::Begin("Inspector", &m_showInspector)) { ImGui::End(); return; }
+        if (!ImGui::Begin("Inspector", &m_showInspector)) {
+            ImGui::End();
+            return;
+        }
 
         if (m_selected == entt::null) {
-            ImGui::TextDisabled("No entity selected");
+            ImGui::TextDisabled("No selection");
             ImGui::End();
             return;
         }
 
         auto& reg = m_engine->world().registry();
-        if (!reg.valid(m_selected)) {
-            m_selected = entt::null;
+        entt::entity e = m_selected;
+
+        if (!reg.valid(e)) {
+            ImGui::TextDisabled("Invalid entity");
             ImGui::End();
             return;
         }
 
-        if (auto* n = reg.try_get<ecs::Name>(m_selected)) {
+        // ===== Name =====
+        if (auto* n = reg.try_get<grit::ecs::Name>(e)) {
             char buf[128];
-            std::snprintf(buf, sizeof(buf), "%s", n->value.c_str());
+            std::strncpy(buf, n->value.c_str(), sizeof(buf));
+            buf[sizeof(buf) - 1] = 0;
             if (ImGui::InputText("Name", buf, sizeof(buf))) {
                 n->value = buf;
             }
         }
-        ImGui::Separator();
 
-        // Transform
-        if (auto* t = reg.try_get<ecs::Transform>(m_selected)) {
+        // ===== Transform =====
+        if (auto* tr = reg.try_get<grit::ecs::Transform>(e)) {
             if (ImGui::CollapsingHeader("Transform", ImGuiTreeNodeFlags_DefaultOpen)) {
-                inspectTransform(*t);
+                ImGui::DragFloat3("Position", &tr->position.x, 0.05f);
+                ImGui::DragFloat3("Rotation", &tr->rotationEuler.x, 0.5f);
+                ImGui::DragFloat3("Scale", &tr->scale.x, 0.05f, 0.01f, 100.0f);
             }
         }
 
-        // MeshRenderer
-        if (auto* mr = reg.try_get<ecs::MeshRenderer>(m_selected)) {
-            if (ImGui::CollapsingHeader("Mesh Renderer", ImGuiTreeNodeFlags_DefaultOpen)) {
-                ImGui::Checkbox("Visible", &mr->visible);
-                ImGui::Text("Mesh: %s",
-                    mr->meshPath.empty() ? "<built-in>" : mr->meshPath.c_str());
-                ImGui::Text("Materials: %d", (int)mr->materials.size());
+        // ===== MeshRenderer (твой код) =====
+        // ... оставь как есть ...
 
-                for (size_t i = 0; i < mr->materials.size(); ++i) {
-                    if (mr->materials[i]) {
-                        ImGui::Separator();
-                        inspectMaterial(*mr->materials[i], (int)i);
-                    }
+        // ===== Directional Light =====
+        if (auto* L = reg.try_get<grit::ecs::LightDirectional>(e)) {
+            if (ImGui::CollapsingHeader("Directional Light", ImGuiTreeNodeFlags_DefaultOpen)) {
+                ImGui::DragFloat3("Direction", &L->direction.x, 0.01f);
+                ImGui::ColorEdit3("Color", &L->color.x);
+                ImGui::DragFloat("Intensity", &L->intensity, 0.05f, 0.0f, 20.0f);
+                ImGui::DragFloat("Ambient", &L->ambient, 0.01f, 0.0f, 1.0f);
+
+                if (ImGui::Button("Remove##DirLight")) {
+                    reg.remove<grit::ecs::LightDirectional>(e);
                 }
             }
         }
 
-        // LightDirectional
-        if (auto* L = reg.try_get<ecs::LightDirectional>(m_selected)) {
-            if (ImGui::CollapsingHeader("Light (Directional)",
-                ImGuiTreeNodeFlags_DefaultOpen))
-            {
-                inspectLight(*L);
+        // ===== Point Light =====
+        if (auto* L = reg.try_get<grit::ecs::LightPoint>(e)) {
+            if (ImGui::CollapsingHeader("Point Light", ImGuiTreeNodeFlags_DefaultOpen)) {
+                ImGui::ColorEdit3("Color", &L->color.x);
+                ImGui::DragFloat("Intensity", &L->intensity, 0.05f, 0.0f, 50.0f);
+                ImGui::DragFloat("Range", &L->range, 0.1f, 0.01f, 1000.0f);
+
+                if (ImGui::Button("Remove##PointLight")) {
+                    reg.remove<grit::ecs::LightPoint>(e);
+                }
+            }
+        }
+
+        // ===== Spot Light =====
+        if (auto* L = reg.try_get<grit::ecs::LightSpot>(e)) {
+            if (ImGui::CollapsingHeader("Spot Light", ImGuiTreeNodeFlags_DefaultOpen)) {
+                ImGui::DragFloat3("Direction", &L->direction.x, 0.01f);
+                ImGui::ColorEdit3("Color", &L->color.x);
+                ImGui::DragFloat("Intensity", &L->intensity, 0.05f, 0.0f, 50.0f);
+                ImGui::DragFloat("Range", &L->range, 0.1f, 0.01f, 1000.0f);
+
+                float innerDeg = L->innerCone * 57.2957795f;
+                float outerDeg = L->outerCone * 57.2957795f;
+                if (ImGui::DragFloat("Inner Cone (deg)", &innerDeg, 0.5f, 1.0f, 89.0f)) {
+                    L->innerCone = innerDeg / 57.2957795f;
+                    if (L->outerCone < L->innerCone) L->outerCone = L->innerCone;
+                }
+                if (ImGui::DragFloat("Outer Cone (deg)", &outerDeg, 0.5f, 1.0f, 89.0f)) {
+                    L->outerCone = outerDeg / 57.2957795f;
+                    if (L->innerCone > L->outerCone) L->innerCone = L->outerCone;
+                }
+
+                if (ImGui::Button("Remove##SpotLight")) {
+                    reg.remove<grit::ecs::LightSpot>(e);
+                }
+            }
+        }
+
+        // ===== Add Component =====
+        ImGui::Separator();
+        if (ImGui::Button("Add Component")) {
+            ImGui::OpenPopup("AddComponentPopup");
+        }
+        if (ImGui::BeginPopup("AddComponentPopup")) {
+            if (ImGui::BeginMenu("Light")) {
+                if (ImGui::MenuItem("Directional Light",
+                    nullptr, false,
+                    !reg.any_of<grit::ecs::LightDirectional>(e)))
+                {
+                    reg.emplace<grit::ecs::LightDirectional>(e);
+                }
+                if (ImGui::MenuItem("Point Light",
+                    nullptr, false,
+                    !reg.any_of<grit::ecs::LightPoint>(e)))
+                {
+                    reg.emplace<grit::ecs::LightPoint>(e);
+                }
+                if (ImGui::MenuItem("Spot Light",
+                    nullptr, false,
+                    !reg.any_of<grit::ecs::LightSpot>(e)))
+                {
+                    reg.emplace<grit::ecs::LightSpot>(e);
+                }
+                ImGui::EndMenu();
+            }
+            ImGui::EndPopup();
+        }
+
+        ImGui::End();
+    }
+
+
+
+    void EditorUI::drawTimeOfDay()
+    {
+        if (!ImGui::Begin("Time of Day", &m_showTimeOfDay)) {
+            ImGui::End();
+            return;
+        }
+
+        auto& tod = m_engine->renderer().timeOfDay();
+
+        // Текущий час
+        f32 hour = tod.hour();
+        if (ImGui::SliderFloat("Hour", &hour, 0.0f, 24.0f, "%.2f h")) {
+            tod.setHour(hour);
+        }
+
+        // Скорость
+        f32 speed = tod.speed();
+        if (ImGui::DragFloat("Speed (hours/sec)", &speed, 0.01f, 0.0f, 5.0f)) {
+            tod.setSpeed(speed);
+        }
+
+        ImGui::Separator();
+
+        // Пресеты скорости
+        if (ImGui::Button("Pause"))          tod.setSpeed(0.0f);
+        ImGui::SameLine();
+        if (ImGui::Button("Real (24min)"))   tod.setSpeed(1.0f / 60.0f);
+        ImGui::SameLine();
+        if (ImGui::Button("Fast (24sec)"))   tod.setSpeed(1.0f);
+        ImGui::SameLine();
+        if (ImGui::Button("Crazy (2.4sec)")) tod.setSpeed(10.0f);
+
+        ImGui::Separator();
+
+        // Быстрые пресеты времени
+        ImGui::Text("Jump to:");
+        if (ImGui::Button("Dawn  (5:00)"))  tod.setHour(5.0f);   ImGui::SameLine();
+        if (ImGui::Button("Noon (12:00)"))  tod.setHour(12.0f);  ImGui::SameLine();
+        if (ImGui::Button("Dusk (19:00)"))  tod.setHour(19.0f);  ImGui::SameLine();
+        if (ImGui::Button("Night (0:00)"))  tod.setHour(0.0f);
+
+        ImGui::Separator();
+
+        // Редактор keyframes
+        if (ImGui::CollapsingHeader("Keyframes")) {
+            for (int i = 0; i < tod.keyframeCount(); ++i) {
+                auto& k = tod.keyframe(i);
+                ImGui::PushID(i);
+                if (ImGui::TreeNode((void*)(intptr_t)i, "Key #%d  @  %.2fh", i, k.hour)) {
+                    ImGui::DragFloat("Hour", &k.hour, 0.1f, 0.0f, 24.0f);
+                    ImGui::ColorEdit3("Sky Top", &k.skyTop.x);
+                    ImGui::ColorEdit3("Sky Bottom", &k.skyBottom.x);
+                    ImGui::ColorEdit3("Sun Color", &k.sunColor.x);
+                    ImGui::DragFloat("Sun Intensity", &k.sunIntensity, 0.01f, 0.0f, 5.0f);
+                    ImGui::ColorEdit3("Ambient", &k.ambientColor.x);
+                    ImGui::DragFloat("Ambient Intensity", &k.ambientIntensity, 0.01f, 0.0f, 5.0f);
+                    ImGui::ColorEdit3("Fog Color", &k.fogColor.x);
+                    ImGui::DragFloat("Fog Start", &k.fogStart, 1.0f, 0.0f, 1000.0f);
+                    ImGui::DragFloat("Fog End", &k.fogEnd, 1.0f, 0.0f, 5000.0f);
+                    ImGui::TreePop();
+                }
+                ImGui::PopID();
             }
         }
 
         ImGui::End();
     }
+
+    void EditorUI::drawEnvironment()
+    {
+        if (!ImGui::Begin("Environment", &m_showEnvironment)) {
+            ImGui::End();
+            return;
+        }
+
+        auto& env = m_engine->renderer().env();
+
+        if (ImGui::CollapsingHeader("Fog", ImGuiTreeNodeFlags_DefaultOpen)) {
+            ImGui::Checkbox("Enabled", &env.fogEnabled);
+
+            const char* modes[] = { "Linear", "Exp", "Exp2" };
+            int mode = (int)env.fogMode;
+            if (ImGui::Combo("Mode", &mode, modes, 3)) {
+                env.fogMode = (grit::render::FogMode)mode;
+            }
+
+            ImGui::ColorEdit3("Color", &env.fogColor.x);
+            ImGui::DragFloat("Start", &env.fogStart, 0.5f, 0.0f, 10000.0f);
+            ImGui::DragFloat("End", &env.fogEnd, 0.5f, 0.0f, 10000.0f);
+            ImGui::DragFloat("Density", &env.fogDensity, 0.001f, 0.0f, 1.0f, "%.4f");
+        }
+
+        if (ImGui::CollapsingHeader("Ambient", ImGuiTreeNodeFlags_DefaultOpen)) {
+            ImGui::ColorEdit3("Color", &env.ambientColor.x);
+            ImGui::DragFloat("Intensity", &env.ambientIntensity, 0.01f, 0.0f, 5.0f);
+        }
+
+        if (ImGui::CollapsingHeader("Sun")) {
+            ImGui::DragFloat3("Direction", &env.sunDirection.x, 0.01f, -1.0f, 1.0f);
+            ImGui::ColorEdit3("Color", &env.sunColor.x);
+            ImGui::DragFloat("Intensity", &env.sunIntensity, 0.01f, 0.0f, 10.0f);
+        }
+
+        if (ImGui::CollapsingHeader("Sky (preview)")) {
+            ImGui::ColorEdit3("Top", &env.skyTopColor.x);
+            ImGui::ColorEdit3("Bottom", &env.skyBottomColor.x);
+        }
+
+        ImGui::End();
+    }
+
+
+    
 
 } // namespace grit::editor

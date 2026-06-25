@@ -25,6 +25,10 @@ namespace grit::editor {
         bool viewportHovered() const { return m_vpHovered; }
         bool cameraCaptured()  const { return m_cameraCaptured; }
 
+        bool m_showTimeOfDay = true;
+        void drawTimeOfDay();
+
+
         enum class CenterTab { MapEditor, Navigation, Game, LuaScript };
         enum class GizmoOp { Translate, Rotate, Scale };
 
@@ -49,6 +53,11 @@ namespace grit::editor {
         void drawCenterArea();
         void drawGizmo();
         float m_headerHeight = 0.0f;
+        bool m_showEnvironment = true;
+        void drawEnvironment();
+
+        void pickEntity(float mouseInVpX, float mouseInVpY);
+
         // Прочее
         void handleAssetDrop(const std::string& path);
 
@@ -56,6 +65,10 @@ namespace grit::editor {
         entt::entity createEmpty(const char* name = "Empty");
         entt::entity createPrimitive(const char* kind); // "Cube"/"Sphere"/"Plane"
         entt::entity createLight();
+
+        void createPointLight();
+        void createSpotLight();
+
         void         duplicateEntity(entt::entity src);
 
         // Состояние

@@ -4,6 +4,9 @@
 #include <cmath>
 #include <cstdint>
 
+#include <cfloat>      // FLT_MAX
+#include <algorithm>   // std::min/max
+
 namespace grit::render::Primitives {
 
     static std::shared_ptr<StaticMesh> buildMesh(
@@ -25,6 +28,18 @@ namespace grit::render::Primitives {
             s.indexCount = (uint32_t)indices.size();
             s.materialIndex = 0;
             mesh->setSubmeshes({ s });
+        }
+
+        // --- AABB ---
+        if (!verts.empty()) {
+            vec3 mn{ FLT_MAX,  FLT_MAX,  FLT_MAX };
+            vec3 mx{ -FLT_MAX, -FLT_MAX, -FLT_MAX };
+            for (const auto& v : verts) {
+                mn.x = std::min(mn.x, v.px);  mx.x = std::max(mx.x, v.px);
+                mn.y = std::min(mn.y, v.py);  mx.y = std::max(mx.y, v.py);
+                mn.z = std::min(mn.z, v.pz);  mx.z = std::max(mx.z, v.pz);
+            }
+            mesh->setAabb(mn, mx);
         }
         return mesh;
     }

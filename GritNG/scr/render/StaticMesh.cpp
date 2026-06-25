@@ -28,7 +28,7 @@ namespace grit::render {
         // glTF индексы — обычно 32-битные
         if (!m_ib.create(indices, icount * sizeof(u32), true))
             return false;
-        m_indexCount = icount;       // ← добавь это
+        m_indexCount = icount;
         return true;
     }
 

@@ -16,21 +16,24 @@
     <Filter Include="third_party">
       <UniqueIdentifier>{384ebef5-f2fd-4663-b576-79d7d67d184c}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Файлы заголовков\Render">
+      <UniqueIdentifier>{d2137e81-7545-4c74-af8c-0b1e4f8cb3fe}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Исходные файлы\Render">
+      <UniqueIdentifier>{3933a08b-b9ee-4b1e-bc2b-b0f6413da36b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Файлы заголовков\Editor">
+      <UniqueIdentifier>{4100f8ff-a459-4091-9571-651049a71022}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Исходные файлы\Editor">
+      <UniqueIdentifier>{bf35dc5c-bc57-409b-ae9a-d952fdf33e5d}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="scr\platform\Window.cpp">
       <Filter>Исходные файлы</Filter>
     </ClCompile>
-    <ClCompile Include="scr\rhi\Device.cpp">
-      <Filter>Исходные файлы</Filter>
-    </ClCompile>
-    <ClCompile Include="scr\render\Renderer.cpp">
-      <Filter>Исходные файлы</Filter>
-    </ClCompile>
     <ClCompile Include="scr\Engine.cpp">
-      <Filter>Исходные файлы</Filter>
-    </ClCompile>
-    <ClCompile Include="scr\rhi\Resources.cpp">
       <Filter>Исходные файлы</Filter>
     </ClCompile>
     <ClCompile Include="scr\render\Camera.cpp">
@@ -75,9 +78,6 @@
     <ClCompile Include="scr\render\ImGuiBackend.cpp">
       <Filter>Исходные файлы</Filter>
     </ClCompile>
-    <ClCompile Include="scr\Editor\EditorUI.cpp">
-      <Filter>Исходные файлы</Filter>
-    </ClCompile>
     <ClCompile Include="..\third_party\imgui-docking\imgui.cpp">
       <Filter>third_party</Filter>
     </ClCompile>
@@ -99,8 +99,32 @@
     <ClCompile Include="..\third_party\ImGuizmo-master\src\ImGuizmo.cpp">
       <Filter>third_party</Filter>
     </ClCompile>
+    <ClCompile Include="scr\render\TimeOfDay.cpp">
+      <Filter>Исходные файлы\Render</Filter>
+    </ClCompile>
+    <ClCompile Include="scr\render\Renderer.cpp">
+      <Filter>Исходные файлы\Render</Filter>
+    </ClCompile>
+    <ClCompile Include="scr\rhi\Device.cpp">
+      <Filter>Исходные файлы\Render</Filter>
+    </ClCompile>
+    <ClCompile Include="scr\rhi\Resources.cpp">
+      <Filter>Исходные файлы\Render</Filter>
+    </ClCompile>
+    <ClCompile Include="scr\render\Skydome.cpp">
+      <Filter>Исходные файлы\Render</Filter>
+    </ClCompile>
     <ClCompile Include="scr\render\Primitives.cpp">
-      <Filter>Исходные файлы</Filter>
+      <Filter>Исходные файлы\Editor</Filter>
+    </ClCompile>
+    <ClCompile Include="scr\Editor\Picking.cpp">
+      <Filter>Исходные файлы\Editor</Filter>
+    </ClCompile>
+    <ClCompile Include="scr\Editor\EditorUI.cpp">
+      <Filter>Исходные файлы\Editor</Filter>
+    </ClCompile>
+    <ClCompile Include="scr\render\DebugDraw.cpp">
+      <Filter>Исходные файлы\Render</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -119,19 +143,10 @@
     <ClInclude Include="scr\platform\Window.h">
       <Filter>Файлы заголовков</Filter>
     </ClInclude>
-    <ClInclude Include="scr\rhi\Device.h">
-      <Filter>Файлы заголовков</Filter>
-    </ClInclude>
     <ClInclude Include="scr\ecs\World.h">
       <Filter>Файлы заголовков</Filter>
     </ClInclude>
-    <ClInclude Include="scr\render\Renderer.h">
-      <Filter>Файлы заголовков</Filter>
-    </ClInclude>
     <ClInclude Include="scr\Engine.h">
-      <Filter>Файлы заголовков</Filter>
-    </ClInclude>
-    <ClInclude Include="scr\rhi\Resources.h">
       <Filter>Файлы заголовков</Filter>
     </ClInclude>
     <ClInclude Include="scr\render\Camera.h">
@@ -194,9 +209,6 @@
     <ClInclude Include="scr\render\ImGuiBackend.h">
       <Filter>Файлы заголовков</Filter>
     </ClInclude>
-    <ClInclude Include="scr\Editor\EditorUI.h">
-      <Filter>Файлы заголовков</Filter>
-    </ClInclude>
     <ClInclude Include="..\third_party\imgui-docking\imconfig.h">
       <Filter>third_party</Filter>
     </ClInclude>
@@ -217,6 +229,33 @@
     </ClInclude>
     <ClInclude Include="scr\render\Primitives.h">
       <Filter>Файлы заголовков</Filter>
+    </ClInclude>
+    <ClInclude Include="scr\render\Renderer.h">
+      <Filter>Файлы заголовков\Render</Filter>
+    </ClInclude>
+    <ClInclude Include="scr\render\Environment.h">
+      <Filter>Файлы заголовков\Render</Filter>
+    </ClInclude>
+    <ClInclude Include="scr\render\TimeOfDay.h">
+      <Filter>Файлы заголовков\Render</Filter>
+    </ClInclude>
+    <ClInclude Include="scr\render\Skydome.h">
+      <Filter>Файлы заголовков\Render</Filter>
+    </ClInclude>
+    <ClInclude Include="scr\rhi\Resources.h">
+      <Filter>Файлы заголовков\Render</Filter>
+    </ClInclude>
+    <ClInclude Include="scr\rhi\Device.h">
+      <Filter>Файлы заголовков\Render</Filter>
+    </ClInclude>
+    <ClInclude Include="scr\Editor\Picking.h">
+      <Filter>Файлы заголовков\Editor</Filter>
+    </ClInclude>
+    <ClInclude Include="scr\Editor\EditorUI.h">
+      <Filter>Файлы заголовков\Editor</Filter>
+    </ClInclude>
+    <ClInclude Include="scr\render\DebugDraw.h">
+      <Filter>Файлы заголовков\Render</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

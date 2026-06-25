@@ -45,11 +45,19 @@ namespace grit::render {
 
         static const rhi::VertexLayout& staticLayout();
 
+        // AABB в локальных координатах меша
+        const vec3& aabbMin() const { return m_aabbMin; }
+        const vec3& aabbMax() const { return m_aabbMax; }
+        void setAabb(const vec3& mn, const vec3& mx) { m_aabbMin = mn; m_aabbMax = mx; }
+
     private:
         rhi::VertexBuffer    m_vb;
         rhi::IndexBuffer     m_ib;
         u32                  m_indexCount = 0;
         std::vector<Submesh> m_submeshes;
+
+        vec3 m_aabbMin{ -0.5f, -0.5f, -0.5f };
+        vec3 m_aabbMax{ 0.5f,  0.5f,  0.5f };
     };
 
 } // namespace grit::render

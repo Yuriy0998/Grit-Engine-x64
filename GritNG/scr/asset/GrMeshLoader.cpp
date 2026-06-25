@@ -5,6 +5,8 @@
 #include <cstdio>
 #include <vector>
 #include <cstring>
+#include <cfloat>
+#include <algorithm>
 
 namespace grit::asset {
 
@@ -193,6 +195,8 @@ namespace grit::asset {
             out.submeshes.push_back(s);
         }
 
+
+
         // Создаём StaticMesh.
         // Сейчас StaticMesh::createFromArrays принимает только u32 индексы и StaticVertex —
         // конвертируем если надо.
@@ -234,6 +238,28 @@ namespace grit::asset {
         }
 
         out.mesh = mesh;
+
+
+        // Прокидываем AABB (если был в чанке AABB)
+        if (!(out.aabbMin.x == 0 && out.aabbMin.y == 0 && out.aabbMin.z == 0 &&
+            out.aabbMax.x == 0 && out.aabbMax.y == 0 && out.aabbMax.z == 0))
+        {
+            mesh->setAabb(out.aabbMin, out.aabbMax);
+        }
+        else
+        {
+            // Чанка AABB не было — считаем из вершин
+            vec3 mn{ FLT_MAX,  FLT_MAX,  FLT_MAX };
+            vec3 mx{ -FLT_MAX, -FLT_MAX, -FLT_MAX };
+            for (const auto& v : sv) {
+                mn.x = std::min(mn.x, v.px);  mx.x = std::max(mx.x, v.px);
+                mn.y = std::min(mn.y, v.py);  mx.y = std::max(mx.y, v.py);
+                mn.z = std::min(mn.z, v.pz);  mx.z = std::max(mx.z, v.pz);
+            }
+            mesh->setAabb(mn, mx);
+            out.aabbMin = mn;
+            out.aabbMax = mx;
+        }
 
         GRIT_INFO("grmesh loaded: %s (verts=%u, idx=%u, submeshes=%u, mats=%u)",
             path.c_str(),

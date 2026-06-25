@@ -144,17 +144,25 @@
     <ClCompile Include="scr\ecs\SceneSystem.cpp" />
     <ClCompile Include="scr\Editor\EditorStyle.cpp" />
     <ClCompile Include="scr\Editor\EditorUI.cpp" />
+    <ClCompile Include="scr\Editor\Picking.cpp" />
     <ClCompile Include="scr\Engine.cpp" />
     <ClCompile Include="scr\platform\Window.cpp" />
     <ClCompile Include="scr\render\Camera.cpp" />
     <ClCompile Include="scr\render\CameraController.cpp" />
+    <ClCompile Include="scr\render\DebugDraw.cpp" />
     <ClCompile Include="scr\render\ImGuiBackend.cpp" />
     <ClCompile Include="scr\render\Mesh.cpp" />
     <ClCompile Include="scr\render\Primitives.cpp" />
     <ClCompile Include="scr\render\Renderer.cpp" />
     <ClCompile Include="scr\render\ShaderRegistry.cpp" />
+    <ClCompile Include="scr\render\Skydome.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
+    </ClCompile>
     <ClCompile Include="scr\render\StaticMesh.cpp" />
     <ClCompile Include="scr\render\Texture.cpp" />
+    <ClCompile Include="scr\render\TimeOfDay.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
+    </ClCompile>
     <ClCompile Include="scr\rhi\Device.cpp" />
     <ClCompile Include="scr\rhi\Resources.cpp" />
     <ClCompile Include="scr\scene\SceneSerializer.cpp" />
@@ -183,18 +191,23 @@
     <ClInclude Include="scr\ecs\World.h" />
     <ClInclude Include="scr\Editor\EditorStyle.h" />
     <ClInclude Include="scr\Editor\EditorUI.h" />
+    <ClInclude Include="scr\Editor\Picking.h" />
     <ClInclude Include="scr\Engine.h" />
     <ClInclude Include="scr\platform\Window.h" />
     <ClInclude Include="scr\render\Camera.h" />
     <ClInclude Include="scr\render\CameraController.h" />
+    <ClInclude Include="scr\render\DebugDraw.h" />
+    <ClInclude Include="scr\render\Environment.h" />
     <ClInclude Include="scr\render\ImGuiBackend.h" />
     <ClInclude Include="scr\render\Material.h" />
     <ClInclude Include="scr\render\Mesh.h" />
     <ClInclude Include="scr\render\Primitives.h" />
     <ClInclude Include="scr\render\Renderer.h" />
     <ClInclude Include="scr\render\ShaderRegistry.h" />
+    <ClInclude Include="scr\render\Skydome.h" />
     <ClInclude Include="scr\render\StaticMesh.h" />
     <ClInclude Include="scr\render\Texture.h" />
+    <ClInclude Include="scr\render\TimeOfDay.h" />
     <ClInclude Include="scr\rhi\Device.h" />
     <ClInclude Include="scr\rhi\Resources.h" />
     <ClInclude Include="scr\scene\SceneSerializer.h" />

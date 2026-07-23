@@ -144,6 +144,12 @@
     <ClCompile Include="scr\ecs\SceneSystem.cpp" />
     <ClCompile Include="scr\Editor\EditorStyle.cpp" />
     <ClCompile Include="scr\Editor\EditorUI.cpp" />
+    <ClCompile Include="scr\Editor\EditorUI_Entities.cpp" />
+    <ClCompile Include="scr\Editor\EditorUI_Environment.cpp" />
+    <ClCompile Include="scr\Editor\EditorUI_Hierarchy.cpp" />
+    <ClCompile Include="scr\Editor\EditorUI_Inspector.cpp" />
+    <ClCompile Include="scr\Editor\EditorUI_Panels.cpp" />
+    <ClCompile Include="scr\Editor\EditorUI_Viewport.cpp" />
     <ClCompile Include="scr\Editor\Picking.cpp" />
     <ClCompile Include="scr\Engine.cpp" />
     <ClCompile Include="scr\platform\Window.cpp" />
@@ -154,6 +160,13 @@
     <ClCompile Include="scr\render\Mesh.cpp" />
     <ClCompile Include="scr\render\Primitives.cpp" />
     <ClCompile Include="scr\render\Renderer.cpp" />
+    <ClCompile Include="scr\render\Renderer_Bloom.cpp" />
+    <ClCompile Include="scr\render\Renderer_Debug.cpp" />
+    <ClCompile Include="scr\render\Renderer_Grid.cpp" />
+    <ClCompile Include="scr\render\Renderer_Lights.cpp" />
+    <ClCompile Include="scr\render\Renderer_Mesh.cpp" />
+    <ClCompile Include="scr\render\Renderer_Shadow.cpp" />
+    <ClCompile Include="scr\render\Renderer_Targets.cpp" />
     <ClCompile Include="scr\render\ShaderRegistry.cpp" />
     <ClCompile Include="scr\render\Skydome.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
@@ -165,6 +178,7 @@
     </ClCompile>
     <ClCompile Include="scr\rhi\Device.cpp" />
     <ClCompile Include="scr\rhi\Resources.cpp" />
+    <ClCompile Include="scr\scene\PrefabSerializer.cpp" />
     <ClCompile Include="scr\scene\SceneSerializer.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -191,6 +205,7 @@
     <ClInclude Include="scr\ecs\World.h" />
     <ClInclude Include="scr\Editor\EditorStyle.h" />
     <ClInclude Include="scr\Editor\EditorUI.h" />
+    <ClInclude Include="scr\Editor\EditorUI_Internal.h" />
     <ClInclude Include="scr\Editor\Picking.h" />
     <ClInclude Include="scr\Engine.h" />
     <ClInclude Include="scr\platform\Window.h" />
@@ -203,6 +218,7 @@
     <ClInclude Include="scr\render\Mesh.h" />
     <ClInclude Include="scr\render\Primitives.h" />
     <ClInclude Include="scr\render\Renderer.h" />
+    <ClInclude Include="scr\render\Renderer_Internal.h" />
     <ClInclude Include="scr\render\ShaderRegistry.h" />
     <ClInclude Include="scr\render\Skydome.h" />
     <ClInclude Include="scr\render\StaticMesh.h" />
@@ -210,6 +226,7 @@
     <ClInclude Include="scr\render\TimeOfDay.h" />
     <ClInclude Include="scr\rhi\Device.h" />
     <ClInclude Include="scr\rhi\Resources.h" />
+    <ClInclude Include="scr\scene\PrefabSerializer.h" />
     <ClInclude Include="scr\scene\SceneSerializer.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

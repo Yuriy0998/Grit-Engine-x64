@@ -129,16 +129,22 @@ namespace grit {
         case WM_KEYDOWN:
         case WM_SYSKEYDOWN: {
             if (self && self->_input()) {
-                // Игнорируем auto-repeat
-                bool wasDown = (lp & (1 << 30)) != 0;
-                if (!wasDown) {
-                    Key k = vkToKey(wp, lp);
-                    self->_input()->_onKey(k, true);
-                }
+                Key k = vkToKey(wp, lp);
+                // Не фильтруем auto-repeat: ImGui это нужно для повтора клавиш.
+                // (для игровой логики wasPressed по-прежнему сработает один раз,
+                //  т.к. m_keysPrev обновляется раз в кадр)
+                self->_input()->_onKey(k, true);
             }
-            // Не позволяем системе обрабатывать Alt-меню (F10/Alt)
             if (wp == VK_F10 || wp == VK_MENU) return 0;
             break;
+        }
+        case WM_CHAR: {
+            if (self && self->_input()) {
+                // wp — UTF-16 code unit. Печатаемые символы >= 32, плюс не-управляющие.
+                if (wp >= 32 && wp != 127)              // отсекаем управляющие
+                    self->_input()->_onChar((unsigned)wp);
+            }
+            return 0;
         }
         case WM_KEYUP:
         case WM_SYSKEYUP: {
@@ -163,6 +169,7 @@ namespace grit {
             }
             return TRUE;
         }
+
         case WM_XBUTTONUP: {
             if (self && self->_input()) {
                 MouseButton b = (HIWORD(wp) == XBUTTON1) ? MouseButton::X1 : MouseButton::X2;

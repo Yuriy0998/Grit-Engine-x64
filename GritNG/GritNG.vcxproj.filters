@@ -28,6 +28,12 @@
     <Filter Include="Исходные файлы\Editor">
       <UniqueIdentifier>{bf35dc5c-bc57-409b-ae9a-d952fdf33e5d}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Исходные файлы\Scene">
+      <UniqueIdentifier>{8c8b1b9a-471d-419b-b424-10902d30fb0d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Файлы заголовков\Scene">
+      <UniqueIdentifier>{c1f6abf5-db75-4ffb-bd27-8da96c08d900}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="scr\platform\Window.cpp">
@@ -60,9 +66,6 @@
     <ClCompile Include="scr\render\CameraController.cpp">
       <Filter>Исходные файлы</Filter>
     </ClCompile>
-    <ClCompile Include="scr\ecs\SceneSystem.cpp">
-      <Filter>Исходные файлы</Filter>
-    </ClCompile>
     <ClCompile Include="scr\core\Time.cpp">
       <Filter>Исходные файлы</Filter>
     </ClCompile>
@@ -70,9 +73,6 @@
       <Filter>Исходные файлы</Filter>
     </ClCompile>
     <ClCompile Include="scr\render\ShaderRegistry.cpp">
-      <Filter>Исходные файлы</Filter>
-    </ClCompile>
-    <ClCompile Include="scr\scene\SceneSerializer.cpp">
       <Filter>Исходные файлы</Filter>
     </ClCompile>
     <ClCompile Include="scr\render\ImGuiBackend.cpp">
@@ -124,6 +124,54 @@
       <Filter>Исходные файлы\Editor</Filter>
     </ClCompile>
     <ClCompile Include="scr\render\DebugDraw.cpp">
+      <Filter>Исходные файлы\Render</Filter>
+    </ClCompile>
+    <ClCompile Include="scr\scene\SceneSerializer.cpp">
+      <Filter>Исходные файлы\Scene</Filter>
+    </ClCompile>
+    <ClCompile Include="scr\scene\PrefabSerializer.cpp">
+      <Filter>Исходные файлы\Scene</Filter>
+    </ClCompile>
+    <ClCompile Include="scr\ecs\SceneSystem.cpp">
+      <Filter>Исходные файлы\Scene</Filter>
+    </ClCompile>
+    <ClCompile Include="scr\Editor\EditorUI_Entities.cpp">
+      <Filter>Исходные файлы\Editor</Filter>
+    </ClCompile>
+    <ClCompile Include="scr\Editor\EditorUI_Panels.cpp">
+      <Filter>Исходные файлы\Editor</Filter>
+    </ClCompile>
+    <ClCompile Include="scr\Editor\EditorUI_Viewport.cpp">
+      <Filter>Исходные файлы\Editor</Filter>
+    </ClCompile>
+    <ClCompile Include="scr\Editor\EditorUI_Hierarchy.cpp">
+      <Filter>Исходные файлы\Editor</Filter>
+    </ClCompile>
+    <ClCompile Include="scr\Editor\EditorUI_Inspector.cpp">
+      <Filter>Исходные файлы\Editor</Filter>
+    </ClCompile>
+    <ClCompile Include="scr\Editor\EditorUI_Environment.cpp">
+      <Filter>Исходные файлы\Editor</Filter>
+    </ClCompile>
+    <ClCompile Include="scr\render\Renderer_Lights.cpp">
+      <Filter>Исходные файлы\Render</Filter>
+    </ClCompile>
+    <ClCompile Include="scr\render\Renderer_Mesh.cpp">
+      <Filter>Исходные файлы\Render</Filter>
+    </ClCompile>
+    <ClCompile Include="scr\render\Renderer_Debug.cpp">
+      <Filter>Исходные файлы\Render</Filter>
+    </ClCompile>
+    <ClCompile Include="scr\render\Renderer_Bloom.cpp">
+      <Filter>Исходные файлы\Render</Filter>
+    </ClCompile>
+    <ClCompile Include="scr\render\Renderer_Grid.cpp">
+      <Filter>Исходные файлы\Render</Filter>
+    </ClCompile>
+    <ClCompile Include="scr\render\Renderer_Targets.cpp">
+      <Filter>Исходные файлы\Render</Filter>
+    </ClCompile>
+    <ClCompile Include="scr\render\Renderer_Shadow.cpp">
       <Filter>Исходные файлы\Render</Filter>
     </ClCompile>
   </ItemGroup>
@@ -191,9 +239,6 @@
     <ClInclude Include="scr\ecs\Hierarchy.h">
       <Filter>Файлы заголовков</Filter>
     </ClInclude>
-    <ClInclude Include="scr\ecs\SceneSystem.h">
-      <Filter>Файлы заголовков</Filter>
-    </ClInclude>
     <ClInclude Include="scr\core\FileWatcher.h">
       <Filter>Файлы заголовков</Filter>
     </ClInclude>
@@ -201,9 +246,6 @@
       <Filter>Файлы заголовков</Filter>
     </ClInclude>
     <ClInclude Include="scr\ecs\Light.h">
-      <Filter>Файлы заголовков</Filter>
-    </ClInclude>
-    <ClInclude Include="scr\scene\SceneSerializer.h">
       <Filter>Файлы заголовков</Filter>
     </ClInclude>
     <ClInclude Include="scr\render\ImGuiBackend.h">
@@ -230,9 +272,6 @@
     <ClInclude Include="scr\render\Primitives.h">
       <Filter>Файлы заголовков</Filter>
     </ClInclude>
-    <ClInclude Include="scr\render\Renderer.h">
-      <Filter>Файлы заголовков\Render</Filter>
-    </ClInclude>
     <ClInclude Include="scr\render\Environment.h">
       <Filter>Файлы заголовков\Render</Filter>
     </ClInclude>
@@ -255,6 +294,24 @@
       <Filter>Файлы заголовков\Editor</Filter>
     </ClInclude>
     <ClInclude Include="scr\render\DebugDraw.h">
+      <Filter>Файлы заголовков\Render</Filter>
+    </ClInclude>
+    <ClInclude Include="scr\render\Renderer.h">
+      <Filter>Файлы заголовков\Render</Filter>
+    </ClInclude>
+    <ClInclude Include="scr\scene\PrefabSerializer.h">
+      <Filter>Файлы заголовков\Scene</Filter>
+    </ClInclude>
+    <ClInclude Include="scr\ecs\SceneSystem.h">
+      <Filter>Файлы заголовков\Scene</Filter>
+    </ClInclude>
+    <ClInclude Include="scr\scene\SceneSerializer.h">
+      <Filter>Файлы заголовков\Scene</Filter>
+    </ClInclude>
+    <ClInclude Include="scr\Editor\EditorUI_Internal.h">
+      <Filter>Файлы заголовков\Editor</Filter>
+    </ClInclude>
+    <ClInclude Include="scr\render\Renderer_Internal.h">
       <Filter>Файлы заголовков\Render</Filter>
     </ClInclude>
   </ItemGroup>

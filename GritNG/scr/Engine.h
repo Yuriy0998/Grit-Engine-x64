@@ -9,6 +9,7 @@
 #include "platform/Window.h"
 #include "ecs/World.h"
 #include "render/Renderer.h"
+#include "render/Renderer_Internal.h"
 #include "asset/AssetManager.h"
 #include "ecs/SceneSystem.h"
 #include "core/Time.h"

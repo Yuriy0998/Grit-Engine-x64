@@ -29,8 +29,10 @@ namespace grit {
         void CameraController::update(f32 dt) {
             if (!m_camera || !m_input) return;
 
-            // --- Look-режим: захват мыши по ПКМ ---
+            // --- Look-режим ---
             if (m_config.rightMouseToLook) {
+                // Внутренний режим по ПКМ (для standalone-игры без редактора).
+                // В редакторе используйте rightMouseToLook = false + setExternalLook().
                 if (m_input->wasMousePressed(MouseButton::Right)) {
                     m_input->setMouseCaptured(true);
                     m_looking = true;
@@ -41,50 +43,57 @@ namespace grit {
                 }
             }
             else {
-                // Управляется снаружи (например, EditorUI)
+                // Управляется снаружи (EditorUI)
                 m_looking = m_externalLook;
+            }
+
+            // === КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ ===
+            // Если управление камерой не активно (курсор не над вьюпортом / ПКМ не зажат),
+            // то ни look, ни движение, ни колесо НЕ обрабатываем.
+            const bool active = m_config.rightMouseToLook ? m_looking : m_externalLook;
+            if (!active) {
+                // Всё равно обновим Camera из текущего состояния, чтобы позиция была валидна
+                f32 cy = std::cos(m_yaw), sy = std::sin(m_yaw);
+                f32 cp = std::cos(m_pitch), sp = std::sin(m_pitch);
+                vec3 forward{ sy * cp, sp, cy * cp };
+                m_camera->position = m_position;
+                m_camera->target = vec3{ m_position.x + forward.x,
+                                           m_position.y + forward.y,
+                                           m_position.z + forward.z };
+                m_camera->up = vec3{ 0.f, 1.f, 0.f };
+                return;   // ← выходим, движение/look не применяем
             }
 
             // --- Mouse look ---
             if (m_looking) {
                 f32 dx = (f32)m_input->mouseDeltaX();
                 f32 dy = (f32)m_input->mouseDeltaY();
-                if (dx != 0 || dy != 0) {
-                    GRIT_INFO("mouse delta: %.0f %.0f", dx, dy);
-                }
 
-                // Сдвигаем углы. Знаки подобраны под нашу матрицу взгляда (Y-up, LH/RH — не важно
-                // для управления; визуально: мышь вправо → камера поворачивается вправо).
                 m_yaw += dx * m_config.mouseSensitivity;
                 m_pitch += (m_config.invertY ? dy : -dy) * m_config.mouseSensitivity;
 
-                // Wrap yaw в [-PI, PI]
                 if (m_yaw > kPi) m_yaw -= 2.f * kPi;
                 if (m_yaw < -kPi) m_yaw += 2.f * kPi;
-
-                // Clamp pitch
                 if (m_pitch > kPitchLimit) m_pitch = kPitchLimit;
                 if (m_pitch < -kPitchLimit) m_pitch = -kPitchLimit;
             }
 
-            // --- Регулировка базовой скорости колесом ---
+            // --- Колесо (скорость) ---
             f32 wheel = m_input->wheelDelta();
             if (wheel != 0.f) {
                 f32 factor = std::pow(m_config.wheelSpeedStep, wheel);
                 m_speed *= factor;
-                if (m_speed < m_config.minSpeed) m_speed = m_config.minSpeed;
-                if (m_speed > m_config.maxSpeed) m_speed = m_config.maxSpeed;
+                m_speed = std::clamp(m_speed, m_config.minSpeed, m_config.maxSpeed);
             }
 
-            // --- Векторы базиса камеры ---
+            // --- Базис ---
             f32 cy = std::cos(m_yaw), sy = std::sin(m_yaw);
             f32 cp = std::cos(m_pitch), sp = std::sin(m_pitch);
-
-            vec3 forward{ sy * cp,  sp,  cy * cp };
-            vec3 right{ cy,       0.f, -sy }; // перпендикулярно forward на плоскости XZ
+            vec3 forward{ sy * cp, sp, cy * cp };
+            vec3 right{ cy, 0.f, -sy };
             vec3 worldUp{ 0.f, 1.f, 0.f };
 
-            // --- Движение ---
+            // --- Движение (только при active) ---
             vec3 move{ 0.f, 0.f, 0.f };
             if (m_input->isDown(Key::W)) { move.x += forward.x; move.y += forward.y; move.z += forward.z; }
             if (m_input->isDown(Key::S)) { move.x -= forward.x; move.y -= forward.y; move.z -= forward.z; }
@@ -93,11 +102,8 @@ namespace grit {
             if (m_input->isDown(Key::E)) { move.y += worldUp.y; }
             if (m_input->isDown(Key::Q)) { move.y -= worldUp.y; }
 
-            // Нормализация (чтобы по диагонали не было быстрее)
             f32 mlen = std::sqrt(move.x * move.x + move.y * move.y + move.z * move.z);
-            if (mlen > 1e-5f) {
-                move.x /= mlen; move.y /= mlen; move.z /= mlen;
-            }
+            if (mlen > 1e-5f) { move.x /= mlen; move.y /= mlen; move.z /= mlen; }
 
             f32 speed = m_speed;
             if (m_input->isDown(Key::LeftShift) || m_input->isDown(Key::RightShift))
@@ -109,13 +115,10 @@ namespace grit {
             m_position.y += move.y * speed * dt;
             m_position.z += move.z * speed * dt;
 
-            // --- Записываем в Camera ---
             m_camera->position = m_position;
-            m_camera->target = vec3{
-                m_position.x + forward.x,
-                m_position.y + forward.y,
-                m_position.z + forward.z
-            };
+            m_camera->target = vec3{ m_position.x + forward.x,
+                                       m_position.y + forward.y,
+                                       m_position.z + forward.z };
             m_camera->up = worldUp;
         }
 

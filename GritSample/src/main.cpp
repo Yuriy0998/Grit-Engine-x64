@@ -145,12 +145,14 @@ int main() {
     }
 
     // --- Камера ---
+   // --- Камера ---
     auto& cam = engine.renderer().camera();
     grit::render::CameraController camCtrl;
     camCtrl.setCamera(&cam);
     camCtrl.setInput(&input);
     camCtrl.setPositionAndTarget({ 0.f, 6.f, -14.f }, { 0.f, 0.f, 0.f });
     camCtrl.config().baseSpeed = 6.f;
+    camCtrl.config().rightMouseToLook = false;   // ← ДОБАВИТЬ: режим внешнего управления (редактор)
 
     bool rotating = true;
 

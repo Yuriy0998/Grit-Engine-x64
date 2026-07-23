@@ -2,6 +2,7 @@
 #include "Types.h"
 #include "KeyCodes.h"
 #include <bitset>
+#include <vector>
 
 namespace grit {
 
@@ -34,6 +35,15 @@ namespace grit {
         void setMouseCaptured(bool capture) { m_mouseCaptureRequested = capture; }
         bool isMouseCaptured() const { return m_mouseCaptured; }
 
+        struct KeyEvent { Key key; bool down; };
+
+        const std::vector<KeyEvent>& keyEvents()  const { return m_keyEvents; }
+        const std::vector<unsigned>& charQueue()  const { return m_charQueue; }
+
+        void _onChar(unsigned c) { m_charQueue.push_back(c); }
+
+
+
         // --- Вызываются Engine'ом ---
         void beginFrame();   // snapshot: prev = cur, обнуляем дельты
         void endFrame();     // ничего, на будущее
@@ -56,6 +66,9 @@ namespace grit {
         std::bitset<(size_t)Key::Count>          m_keysPrev;
         std::bitset<(size_t)MouseButton::Count>  m_mouseCur;
         std::bitset<(size_t)MouseButton::Count>  m_mousePrev;
+
+        std::vector<KeyEvent> m_keyEvents;
+        std::vector<unsigned> m_charQueue;
 
         i32  m_mouseX = 0, m_mouseY = 0;
         i32  m_mouseDX = 0, m_mouseDY = 0;

@@ -1,10 +1,11 @@
-#pragma once
+п»ї#pragma once
 
 #include <imgui.h>
 #include <ImGuizmo.h>
 #include <entt/entt.hpp>
 #include <cstdint>
 #include <string>
+#include <vector>   // в†ђ NEW: РґР»СЏ РєСЌС€Р° Р°СЃСЃРµС‚РѕРІ Рё Р»РѕРіР°
 
 namespace grit {
     class Engine;
@@ -16,7 +17,7 @@ namespace grit::editor {
     public:
         void init(Engine* engine) { m_engine = engine; }
 
-        // Вызывается между ImGui::NewFrame() и ImGui::Render()
+        // Р’С‹Р·С‹РІР°РµС‚СЃСЏ РјРµР¶РґСѓ ImGui::NewFrame() Рё ImGui::Render()
         void draw();
 
         bool enabled() const { return m_enabled; }
@@ -39,13 +40,14 @@ namespace grit::editor {
         ImVec2 m_vpScreenSize{};
 
     private:
-        // Панели
+        // РџР°РЅРµР»Рё
         void drawHierarchy();
         void drawInspector();
         void drawConsole();
         void drawAssets();
+        void refreshAssetsCache();          // в†ђ NEW
 
-        // Главные элементы UI
+        // Р“Р»Р°РІРЅС‹Рµ СЌР»РµРјРµРЅС‚С‹ UI
         void drawMenuBar();
         void drawTabsBar();
         void drawToolbar();
@@ -58,7 +60,7 @@ namespace grit::editor {
 
         void pickEntity(float mouseInVpX, float mouseInVpY);
 
-        // Прочее
+        // РџСЂРѕС‡РµРµ
         void handleAssetDrop(const std::string& path);
 
         // Entity helpers
@@ -70,8 +72,20 @@ namespace grit::editor {
         void createSpotLight();
 
         void         duplicateEntity(entt::entity src);
+        void         drawCreateEntityMenu();   // в†ђ NEW: РѕР±С‰РµРµ РјРµРЅСЋ (MenuBar + Hierarchy)
 
-        // Состояние
+
+        // Prefab save modal
+        entt::entity m_prefabSaveTarget = entt::null;
+        char         m_prefabSaveName[128] = { 0 };
+        bool m_prefabSaveRequested = false;
+
+
+
+        entt::entity m_renameJustStarted = entt::null;
+        char         m_renameBuf[128] = { 0 };
+
+        // РЎРѕСЃС‚РѕСЏРЅРёРµ
         CenterTab      m_centerTab = CenterTab::MapEditor;
         GizmoOp        m_gizmoOp = GizmoOp::Translate;
         bool           m_gizmoUseLocal = false;
@@ -88,7 +102,21 @@ namespace grit::editor {
         std::string    m_assetsRoot = "assets";
         std::string    m_assetsCurrent = "assets";
 
-        // Видимость панелей (по умолчанию — скрыты, как на 3-м скрине)
+        // ---- Assets cache (EditorUI_Panels.cpp) ---- NEW
+        struct AssetEntry {
+            std::string name;
+            std::string fullPath;
+            std::string label;      // РїСЂРµРґС„РѕСЂРјР°С‚РёСЂРѕРІР°РЅРЅС‹Р№ "[D] name" / "    name"
+            bool        isDir = false;
+        };
+        std::vector<AssetEntry> m_assetsCache;
+        std::string             m_assetsCachedPath;
+        bool                    m_assetsDirty = true;
+
+        // ---- Console (РїРµСЂРµРёСЃРїРѕР»СЊР·СѓРµРјС‹Р№ Р±СѓС„РµСЂ РІРёРґРёРјС‹С… РёРЅРґРµРєСЃРѕРІ) ---- NEW
+        std::vector<int> m_visibleLogIdx;
+
+        // Р’РёРґРёРјРѕСЃС‚СЊ РїР°РЅРµР»РµР№ (РїРѕ СѓРјРѕР»С‡Р°РЅРёСЋ вЂ” СЃРєСЂС‹С‚С‹, РєР°Рє РЅР° 3-Рј СЃРєСЂРёРЅРµ)
         bool m_showHierarchy = false;
         bool m_showInspector = false;
         bool m_showConsole = false;

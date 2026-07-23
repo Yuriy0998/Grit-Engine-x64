@@ -1,4 +1,4 @@
-#include "Input.h"
+ï»¿#include "Input.h"
 
 namespace grit {
 
@@ -8,13 +8,16 @@ namespace grit {
         m_mouseDX = 0;
         m_mouseDY = 0;
         m_wheelDelta = 0.f;
-        m_hadRawThisFrame = false; // <-- íîâîå
+        m_hadRawThisFrame = false;
+
+        m_keyEvents.clear();   // â† Ð½Ð¾Ð²Ð¾Ðµ
+        m_charQueue.clear();   // â† Ð½Ð¾Ð²Ð¾Ðµ
     }
 
     void Input::_onRawMouseDelta(i32 dx, i32 dy) {
         if (!m_hadRawThisFrame) {
-            // Ýòîò êàäð áóäåò ñ÷èòàòüñÿ ïî raw-äåëüòàì — îáíóëÿåì òî,
-            // ÷òî ìîãëî ïðèéòè îò WM_MOUSEMOVE äî ïåðâîãî WM_INPUT.
+            // Ð­Ñ‚Ð¾Ñ‚ ÐºÐ°Ð´Ñ€ Ð±ÑƒÐ´ÐµÑ‚ ÑÑ‡Ð¸Ñ‚Ð°Ñ‚ÑŒÑÑ Ð¿Ð¾ raw-Ð´ÐµÐ»ÑŒÑ‚Ð°Ð¼ â€” Ð¾Ð±Ð½ÑƒÐ»ÑÐµÐ¼ Ñ‚Ð¾,
+            // Ñ‡Ñ‚Ð¾ Ð¼Ð¾Ð³Ð»Ð¾ Ð¿Ñ€Ð¸Ð¹Ñ‚Ð¸ Ð¾Ñ‚ WM_MOUSEMOVE Ð´Ð¾ Ð¿ÐµÑ€Ð²Ð¾Ð³Ð¾ WM_INPUT.
             m_mouseDX = 0;
             m_mouseDY = 0;
             m_hadRawThisFrame = true;
@@ -24,14 +27,14 @@ namespace grit {
     }
 
     void Input::_onMouseMove(i32 x, i32 y) {
-        // Âñåãäà îáíîâëÿåì àáñîëþòíóþ ïîçèöèþ (äëÿ UI/êóðñîðà).
+        // Ð’ÑÐµÐ³Ð´Ð° Ð¾Ð±Ð½Ð¾Ð²Ð»ÑÐµÐ¼ Ð°Ð±ÑÐ¾Ð»ÑŽÑ‚Ð½ÑƒÑŽ Ð¿Ð¾Ð·Ð¸Ñ†Ð¸ÑŽ (Ð´Ð»Ñ UI/ÐºÑƒÑ€ÑÐ¾Ñ€Ð°).
         if (!m_hadRawThisFrame) {
             if (m_hasLastMouse) {
                 m_mouseDX += (x - m_lastMouseX);
                 m_mouseDY += (y - m_lastMouseY);
             }
         }
-        // (raw-ðåæèì: äåëüòà îò WM_MOUSEMOVE èãíîðèðóåòñÿ, íî ïîçèöèþ îáíîâëÿåì)
+        // (raw-Ñ€ÐµÐ¶Ð¸Ð¼: Ð´ÐµÐ»ÑŒÑ‚Ð° Ð¾Ñ‚ WM_MOUSEMOVE Ð¸Ð³Ð½Ð¾Ñ€Ð¸Ñ€ÑƒÐµÑ‚ÑÑ, Ð½Ð¾ Ð¿Ð¾Ð·Ð¸Ñ†Ð¸ÑŽ Ð¾Ð±Ð½Ð¾Ð²Ð»ÑÐµÐ¼)
         m_lastMouseX = x;
         m_lastMouseY = y;
         m_hasLastMouse = true;
@@ -40,12 +43,13 @@ namespace grit {
     }
 
     void Input::endFrame() {
-        // çàðåçåðâèðîâàíî
+        // Ð·Ð°Ñ€ÐµÐ·ÐµÑ€Ð²Ð¸Ñ€Ð¾Ð²Ð°Ð½Ð¾
     }
 
     void Input::_onKey(Key k, bool down) {
         if (k == Key::Unknown) return;
         m_keysCur.set((size_t)k, down);
+        m_keyEvents.push_back({ k, down });   // â† Ð´Ð»Ñ ImGui
     }
 
     void Input::_onMouse(MouseButton b, bool down) {
@@ -56,7 +60,7 @@ namespace grit {
 
     void Input::_resetMouseDelta() {
         m_hasLastMouse = false;
-        // íå òðîãàåì m_mouseDX/DY — îíè óæå ìîãëè áûòü íàêîïëåíû ðåàëüíûì äâèæåíèåì â ýòîì êàäðå
+        // Ð½Ðµ Ñ‚Ñ€Ð¾Ð³Ð°ÐµÐ¼ m_mouseDX/DY â€” Ð¾Ð½Ð¸ ÑƒÐ¶Ðµ Ð¼Ð¾Ð³Ð»Ð¸ Ð±Ñ‹Ñ‚ÑŒ Ð½Ð°ÐºÐ¾Ð¿Ð»ÐµÐ½Ñ‹ Ñ€ÐµÐ°Ð»ÑŒÐ½Ñ‹Ð¼ Ð´Ð²Ð¸Ð¶ÐµÐ½Ð¸ÐµÐ¼ Ð² ÑÑ‚Ð¾Ð¼ ÐºÐ°Ð´Ñ€Ðµ
     }
 
     void Input::_onMouseWheel(f32 delta) {

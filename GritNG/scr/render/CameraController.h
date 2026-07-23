@@ -1,4 +1,4 @@
-#pragma once
+п»ї#pragma once
 
 #include "../core/Types.h"
 #include "../core/Math.h"
@@ -12,24 +12,24 @@ namespace grit {
     namespace render {
 
         // FPS-style free-fly camera controller.
-        // - WASD     : вперёд/назад/влево/вправо
-        // - Q/E      : вниз/вверх
-        // - Mouse    : look (когда захвачен ПКМ или mouseCaptured)
-        // - Shift    : ускорение
-        // - Ctrl     : замедление
-        // - Wheel    : регулировка базовой скорости
+        // - WASD     : РІРїРµСЂС‘Рґ/РЅР°Р·Р°Рґ/РІР»РµРІРѕ/РІРїСЂР°РІРѕ
+        // - Q/E      : РІРЅРёР·/РІРІРµСЂС…
+        // - Mouse    : look (РєРѕРіРґР° Р·Р°С…РІР°С‡РµРЅ РџРљРњ РёР»Рё mouseCaptured)
+        // - Shift    : СѓСЃРєРѕСЂРµРЅРёРµ
+        // - Ctrl     : Р·Р°РјРµРґР»РµРЅРёРµ
+        // - Wheel    : СЂРµРіСѓР»РёСЂРѕРІРєР° Р±Р°Р·РѕРІРѕР№ СЃРєРѕСЂРѕСЃС‚Рё
         class CameraController {
         public:
             struct Config {
-                f32 mouseSensitivity = 0.0025f;    // рад на пиксель
-                f32 baseSpeed = 5.0f;       // ед./сек
+                f32 mouseSensitivity = 0.0025f;    // СЂР°Рґ РЅР° РїРёРєСЃРµР»СЊ
+                f32 baseSpeed = 5.0f;       // РµРґ./СЃРµРє
                 f32 fastMultiplier = 4.0f;       // Shift
                 f32 slowMultiplier = 0.25f;      // Ctrl
-                f32 wheelSpeedStep = 1.25f;      // множитель за щелчок колеса
+                f32 wheelSpeedStep = 1.25f;      // РјРЅРѕР¶РёС‚РµР»СЊ Р·Р° С‰РµР»С‡РѕРє РєРѕР»РµСЃР°
                 f32 minSpeed = 0.1f;
                 f32 maxSpeed = 200.0f;
-                // Захватывать мышь автоматически при зажатии ПКМ.
-                // Если false — управление мышью только когда уже captured (toggle снаружи).
+                // Р—Р°С…РІР°С‚С‹РІР°С‚СЊ РјС‹С€СЊ Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРё РїСЂРё Р·Р°Р¶Р°С‚РёРё РџРљРњ.
+                // Р•СЃР»Рё false вЂ” СѓРїСЂР°РІР»РµРЅРёРµ РјС‹С€СЊСЋ С‚РѕР»СЊРєРѕ РєРѕРіРґР° СѓР¶Рµ captured (toggle СЃРЅР°СЂСѓР¶Рё).
                 bool rightMouseToLook = true;
                 bool invertY = false;
             };
@@ -38,18 +38,26 @@ namespace grit {
             void setInput(Input* in) { m_input = in; }
             void setExternalLook(bool v) { m_externalLook = v; }
 
+            // Р Р°Р·СЂРµС€РµРЅРѕ Р»Рё РІРѕРѕР±С‰Рµ СѓРїСЂР°РІР»РµРЅРёРµ РєР°РјРµСЂРѕР№ (РґРІРёР¶РµРЅРёРµ + look)
+            void setInputEnabled(bool v) { m_inputEnabled = v; }
+            bool inputEnabled() const { return m_inputEnabled; }
+
             Config& config() { return m_config; }
             const Config& config() const { return m_config; }
 
-            // Установить позицию и направление (через target).
-            // Внутренне вычисляет yaw/pitch.
+            // РЈСЃС‚Р°РЅРѕРІРёС‚СЊ РїРѕР·РёС†РёСЋ Рё РЅР°РїСЂР°РІР»РµРЅРёРµ (С‡РµСЂРµР· target).
+            // Р’РЅСѓС‚СЂРµРЅРЅРµ РІС‹С‡РёСЃР»СЏРµС‚ yaw/pitch.
             void setPositionAndTarget(const vec3& pos, const vec3& target);
 
-            // Прямой доступ
+            // РџСЂСЏРјРѕР№ РґРѕСЃС‚СѓРї
             void  setPosition(const vec3& p) { m_position = p; }
             vec3  position() const { return m_position; }
             f32   yaw()      const { return m_yaw; }
             f32   pitch()    const { return m_pitch; }
+
+            
+
+         
 
             void update(f32 dt);
 
@@ -57,15 +65,16 @@ namespace grit {
             Camera* m_camera = nullptr;
             Input* m_input = nullptr;
             bool m_externalLook = false;
+            bool m_inputEnabled = false;   // в†ђ NEW
 
             Config  m_config;
 
             vec3    m_position{ 0.f, 0.f, 0.f };
-            f32     m_yaw = 0.f;   // вокруг Y, 0 = смотрим вдоль +Z
-            f32     m_pitch = 0.f;   // вверх/вниз, в радианах
-            f32     m_speed = 5.0f;  // текущая базовая скорость (меняется колесом)
+            f32     m_yaw = 0.f;   // РІРѕРєСЂСѓРі Y, 0 = СЃРјРѕС‚СЂРёРј РІРґРѕР»СЊ +Z
+            f32     m_pitch = 0.f;   // РІРІРµСЂС…/РІРЅРёР·, РІ СЂР°РґРёР°РЅР°С…
+            f32     m_speed = 5.0f;  // С‚РµРєСѓС‰Р°СЏ Р±Р°Р·РѕРІР°СЏ СЃРєРѕСЂРѕСЃС‚СЊ (РјРµРЅСЏРµС‚СЃСЏ РєРѕР»РµСЃРѕРј)
 
-            bool    m_looking = false; // активен ли look-режим
+            bool    m_looking = false; // Р°РєС‚РёРІРµРЅ Р»Рё look-СЂРµР¶РёРј
         };
 
     } // namespace render

@@ -103,29 +103,7 @@ namespace grit {
         m_time._tick(rawDt);
         f32 dt = m_time.deltaTime();
 
-        // Хоткеи статистики
-        if (m_input.wasPressed(Key::F1)) {
-            m_showStats = !m_showStats;
-            bgfx::setDebug(m_showStats ? BGFX_DEBUG_STATS : BGFX_DEBUG_TEXT);
-        }
-        if (m_input.wasPressed(Key::F2)) {
-            m_wireframe = !m_wireframe;
-            bgfx::setDebug(
-                (m_showStats ? BGFX_DEBUG_STATS : BGFX_DEBUG_TEXT) |
-                (m_wireframe ? BGFX_DEBUG_WIREFRAME : 0)
-            );
-        }
-
-        // Текстовый оверлей bgfx (оставим — он полезен и не мешает ImGui)
-        //bgfx::dbgTextClear();
-        //bgfx::dbgTextPrintf(0, 0, 0x0f, "GritNG  |  %.0f FPS  %.2f ms",
-        //    m_time.fps(), m_time.msPerFrame());
-       // {
-       //     const bgfx::Caps* caps = bgfx::getCaps();
-       //     const char* rendererName = bgfx::getRendererName(caps->rendererType);
-       //     bgfx::dbgTextPrintf(0, 1, 0x08, "Backend: %s  |  Frame: %llu",
-       //         rendererName, (unsigned long long)m_time.frameCount());
-       // }
+   
 
         // User update
         if (m_onUpdate) m_onUpdate(dt);
